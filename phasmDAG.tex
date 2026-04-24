@@ -37,11 +37,14 @@
 \newcommand{\Cdep}{\mathcal{C}_{\mathrm{dep}}}
 \newcommand{\Ccoh}{\mathcal{C}_{\mathrm{coh}}}
 \newcommand{\Cfr}{\mathcal{C}_{\mathrm{fr}}}
+\newcommand{\Cdepcert}{\mathcal{C}^{\mathrm{cert}}_{\mathrm{dep}}}
+\newcommand{\Ccohcert}{\mathcal{C}^{\mathrm{cert}}_{\mathrm{coh}}}
 \newcommand{\Ffin}{\mathcal{F}}          % Finality function
 \newcommand{\Uord}{U_{\mathrm{order}}}   % Order utility
 \newcommand{\Rcls}{R_{\mathrm{closure}}} % Closure risk
 \newcommand{\Frag}{\mathrm{FragilityCoupling}}
-\newcommand{\Phifn}{\Phi}               % Bi-objective functional
+\newcommand{\Phifn}{\Phi}               % Advisory mining functional
+\newcommand{\Certcls}{\mathsf{Cert}_{\mathrm{cls}}}
 \newcommand{\Dag}{\mathcal{G}}          % DAG graph
 \newcommand{\Rset}{\mathbb{R}}          % Reals
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
@@ -65,9 +68,9 @@
 \raggedbottom
 
 % ── Metadata ──────────────────────────────────────────────────────────
-\title{\textbf{PHASMDAG: Bi-Objective, Closure-Aware DAG Consensus}\\[6pt]
-{\large Towards a Separation of Order, Closure, and Finality\\
-in High-Throughput Proof-of-Work Consensus}}
+\title{\textbf{PHASMDAG-Core: Closure-Certified Finality for High-Throughput DAG Consensus}\\[6pt]
+{\large RobustDAG and the Separation of Ordering from Strong Finality\\
+in Proof-of-Work BlockDAGs}}
 \author{Arthur Zhang}
 \date{April 2026}
 
@@ -76,35 +79,37 @@ in High-Throughput Proof-of-Work Consensus}}
 
 % =====================================================================
 \begin{abstract}
-This paper sets out a preliminary formulation of \emph{PHASMDAG}, a
-bi-objective, closure-aware DAG consensus protocol intended to separate three
-semantic roles that remain conflated in existing GhostDAG-family designs:
-\emph{ordering}, \emph{closure maturity}, and \emph{finality}.
+This paper sets out a preliminary formulation of \emph{PHASMDAG-Core}, a
+conservative high-throughput DAG protocol that may also be described, at the
+level of design philosophy, as \emph{RobustDAG}.
+The proposal is motivated by the contention that existing GhostDAG-family
+designs conflate three distinct objects: \emph{ordering}, \emph{dependency
+closure}, and \emph{finality}.
 Recent work by Wu, Wei, Zhang, and Jiang\,(NDSS\,2024) suggests that the
 \emph{Decoupling Assumption}---a prerequisite for the security analyses of the
 major DAG-based PoW protocols---may fail under sufficiently high throughput,
 owing to Block Jam and Late-Predecessor effects.
-The present paper proceeds from the contention that the underlying difficulty
-in GhostDAG-family protocols may lie not only in the vulnerability of relay
-paths, but also in the demand placed upon a single structural classifier to
-stand simultaneously for canonical order, safe acceptability, and finality
-confidence.
-PHASMDAG accordingly treats closure as a first-class protocol state and studies
-a bi-objective consensus functional
-$\Phifn(S) = \Uord(S) - \lambda\,\Rcls(S)$
-that trades structural concurrency against dependency fragility.
-In the proposed $v_0$ instantiation, the closure layer is expressed through
-three deterministic sub-metrics---dependency completeness, descendant-support
-coherence, and frontier stability---whose aggregation and penalty terms are
-rendered protocol-visible.
-The paper develops this protocol sketch, records a preliminary security
-heuristic under the Congestible Blockchain Model, and isolates
-\emph{closure coherence} as the principal unresolved theorem target for any
-consistent notion of strong confirmation.
+The present proposal therefore preserves a stable GhostDAG-style ordering core
+with fixed consensus parameters, but adds a closure-aware finality layer in
+which strong confirmation is granted only after deterministic,
+work-weighted closure-certificate conditions hold over a bounded support
+window.
+PHASMDAG-Core treats closure as a monotonic finality certificate rather than a
+volatile ordering weight.
+Immature closure may delay strong confirmation, but it must not by itself
+redirect canonical ordering.
+This conservative asymmetry is intended to bound the payoff of closure
+manipulation: adversarially delayed closure evidence may degrade latency, but
+should not become a cheap consensus-steering lever.
+Bi-objective closure-risk ordering is retained only as an experimental
+extension for future work, not as the core rule of the proposed protocol.
+The paper develops this v1 design sketch, states the principal theorem target
+as \emph{certificate coherence} across honest nodes, and sets out a simulation
+and implementation roadmap rather than a completed security proof.
 \end{abstract}
 
-\noindent{\small\textbf{Keywords:} DAG consensus; GhostDAG; closure-aware consensus;
-late predecessor; block jam; bi-objective optimisation; finality semantics}
+\noindent{\small\textbf{Keywords:} DAG consensus; GhostDAG; closure-certified finality;
+late predecessor; block jam; semantic separation; finality semantics}
 
 % =====================================================================
 \section{Introduction}\label{sec:intro}
@@ -150,31 +155,29 @@ this assumption.
     but becomes a security liability under CBM.
 
     \item \textbf{Protocol design.}
-    A candidate protocol design is set out in which order, closure maturity,
-    and finality are separated into three explicit semantic layers.
-    The proposal introduces closure as a first-class protocol state together
-    with a bi-objective consensus functional
-    $\Phifn(S) = \Uord(S) - \lambda\,\Rcls(S)$ that penalises dependency
-    fragility.
-    For $v_0$, a GhostDAG-style blue-work lineage is taken as the canonical
-    order core, while closure is instantiated through the deterministic
-    sub-metrics $\Cdep(B)$, $\Ccoh(B)$, and $\Cfr(B)$.
+    A candidate protocol design is set out in which closure is introduced as a
+    first-class \emph{finality-certification} state, while the canonical
+    ordering core is deliberately left structurally stable.
+    PHASMDAG-Core preserves a GhostDAG-style blue-work lineage for tentative
+    ordering, but grants strong confirmation only after a monotonic,
+    work-weighted closure certificate has been issued.
 
     \item \textbf{Preliminary security analysis.}
-    A preliminary closure-modulated chain-growth heuristic is recorded under the
-    CBM, together with a candidate dominance region in which closure awareness
-    may outperform purely structural finality under LP attack.
-    Claims advanced here are explicitly separated from claims that remain to be
-    established.
+    A conservative security framing is proposed in which LP/BJ stress is
+    intended to delay strong finality before it can silently weaken safety
+    semantics.
+    The central claim is not that closure manipulation is eliminated, but that
+    its payoff is bounded by refusing to let immature closure directly steer
+    canonical order.
 
     \item \textbf{Formal modelling and verification roadmap.}
     A compositional formal model, a simulation-based evaluation methodology,
     and a phased verification programme are delineated around the theorem
-    target of closure coherence.
+    target of certificate coherence.
 \end{enumerate}
 
 \paragraph{On the designation ``PHASM''.}
-The designation \emph{PHASMDAG} is intended to evoke
+The designation \emph{PHASMDAG-Core} is intended to evoke
 \emph{phase-separated semantics}: order, closure, and finality are treated as
 distinct protocol phases rather than being collapsed into a single structural
 score.
@@ -186,9 +189,23 @@ completed proof artifact.
 \textbf{Lemmas} and \textbf{Propositions} are preliminary and hold only under
 the modelling assumptions stated around them.
 \textbf{Conjectures} identify unresolved validation targets.
-The most important unresolved target is \emph{closure coherence}: whether
-$\Clvl(B)$ converges sufficiently across honest nodes to support consistent
-strong confirmation.
+The most important unresolved target is \emph{certificate coherence}: whether raw
+closure observations and certificate-side thresholds converge sufficiently
+across honest nodes to support consistent strong confirmation.
+
+\paragraph{Design principles.}
+\begin{enumerate}[nosep]
+    \item \textbf{Immature closure delays strong confirmation; it does not directly
+    penalise canonical order.}
+    \item \textbf{Closure is a monotonic certification layer, not a volatile
+    ordering weight.}
+    \item \textbf{The v1 protocol is conservative}: fixed $K$, fixed support
+    window $H$, no dynamic $\lambda$, no dynamic $K$, no closure bounty, and no
+    telemetry-driven local consensus parameters.
+\end{enumerate}
+The guiding intuition is simple: \emph{a robust high-throughput DAG should
+parallelise ordering, not finality.  Strong finality is serialized through
+dependency closure.}
 
 % =====================================================================
 \section{Related Work and Theoretical Context}\label{sec:background}
@@ -255,7 +272,7 @@ The incentive literature is also relevant.
 Strategic withholding attacks were first articulated clearly in the selfish
 mining literature~\cite{eyal2013majority}, where delayed publication changes
 the effective security margin even without violating PoW validity.
-Closure manipulation in PHASMDAG is not identical to selfish mining, but it
+Closure manipulation in PHASMDAG-Core is not identical to selfish mining, but it
 belongs to the same broad family of attacks in which timing asymmetry and
 selective release alter the consensus-visible state.
 Any academically complete treatment of a closure-aware protocol must therefore
@@ -355,6 +372,13 @@ structural:
 When $\Uord(S)$ is the sole objective, there is no mechanism within the
 protocol to distinguish between ``structurally legal but closure-fragile''
 support and ``structurally legal and closure-mature'' support.
+The weakness of GhostDAG under CBM is therefore not merely that the inherited
+$K$ parameter may become poorly calibrated.
+The deeper difficulty is that structural ordering is tacitly treated as a
+proxy for dependency acceptability and finality.
+PHASMDAG-Core does not attempt to repair this by making ordering ever more
+adaptive.
+It instead refuses to let structural order stand in for strong finality.
 
 \subsection{Why Non-Consensus Mitigations Are Necessary But Insufficient}
 
@@ -378,7 +402,8 @@ core mathematical object remains structurally blind to closure.
 \begin{proposition}\label{prop:engineering_ceiling}
 Engineering mitigations that preserve the purely structural consensus objective
 $\max\,\Uord(S)$ can reduce the magnitude of closure fragility but cannot
-detect or penalise it within the consensus protocol itself.
+detect it, certify it, or let it gate strong finality within the consensus
+protocol itself.
 Therefore, the security guarantee remains dependent on the Decoupling
 Assumption, albeit at a lower effective delay.
 \end{proposition}
@@ -393,7 +418,7 @@ This semantic mismatch is summarised visually in \Cref{fig:semantic_gap}.
 \begin{figure}[t]
 \centering
 \begin{tikzpicture}[
-    stage/.style={draw, rounded corners=3pt, minimum width=2.25cm,
+    stage/.style={draw, rounded corners=3pt, minimum width=2.1cm,
                   minimum height=0.82cm, align=center, font=\footnotesize,
                   line width=0.7pt, fill=white},
     ord/.style={stage, draw=blueblock!75!black, fill=blueblock!8},
@@ -402,46 +427,48 @@ This semantic mismatch is summarised visually in \Cref{fig:semantic_gap}.
     arr/.style={-{Stealth[length=2.2mm]}, line width=0.9pt, draw=black!70},
     warn/.style={-{Stealth[length=2.2mm]}, line width=0.9pt,
                  draw=redblock!75!black, dashed},
-    note/.style={font=\scriptsize, align=center, text=black!72},
+    note/.style={font=\scriptsize, align=center, text=black!72,
+                 fill=white, inner sep=1.2pt},
     group/.style={font=\scriptsize\bfseries, text=black!65}
 ]
-\node[group, anchor=east] at (-0.2,0.95) {Conflated};
-\node[ord] (gobs) at (0.95,0.95) {Observed\\DAG};
-\node[ord] (gord) at (3.4,0.95) {Structural\\order};
-\node[fin] (gfin) at (5.85,0.95) {Finality};
-\draw[arr] (gobs) -- (gord);
-\draw[warn] (gord) -- node[above, font=\scriptsize, text=redblock!75!black]
-    {implicit closure judgement} (gfin);
-\node[note, text=redblock!75!black] at (4.62,0.18) {LP gap};
+\node[group, anchor=east] at (-0.25,1.0) {Conflated};
+\node[ord] (gobs) at (1.1,1.0) {Observed\\DAG};
+\node[ord] (gord) at (4.0,1.0) {Order};
+\node[fin] (gfin) at (6.9,1.0) {Finality};
+\draw[arr] (gobs.east) -- (gord.west);
+\draw[warn] (gord.east) -- (gfin.west);
+\node[note, text=redblock!75!black] at (5.45,1.67) {implicit closure\\judgement};
+\node[note, text=redblock!75!black] at (5.45,0.28) {LP gap};
 
-\node[group, anchor=east] at (-0.2,-1.0) {Separated};
-\node[ord] (pobs) at (0.95,-1.0) {Observed\\DAG};
-\node[ord] (pord) at (3.0,-1.0) {Order};
-\node[cls] (pcls) at (5.05,-1.0) {Closure};
-\node[fin] (pfin) at (7.1,-1.0) {Finality};
-\draw[arr] (pobs) -- (pord);
-\draw[arr] (pord) -- (pcls);
-\draw[arr] (pcls) -- (pfin);
-\node[note] at (5.05,-1.76) {closure becomes consensus-visible before strong confirmation};
+\node[group, anchor=east] at (-0.25,-1.0) {Separated};
+\node[ord] (pobs) at (1.1,-1.0) {Observed\\DAG};
+\node[ord] (pord) at (3.55,-1.0) {Order};
+\node[cls] (pcls) at (6.0,-1.0) {Closure};
+\node[fin] (pfin) at (8.45,-1.0) {Finality};
+\draw[arr] (pobs.east) -- (pord.west);
+\draw[arr] (pord.east) -- (pcls.west);
+\draw[arr] (pcls.east) -- (pfin.west);
+\node[note] at (6.0,-1.78) {closure becomes consensus-visible\\before strong confirmation};
 \end{tikzpicture}
 \caption{Why an explicit closure layer is needed.  Under LP attack, structural
 ordering can progress before the dependency world is mature enough for strong
-confirmation.  PHASMDAG inserts closure as an explicit protocol stage rather
+confirmation.  PHASMDAG-Core inserts closure as an explicit protocol stage rather
 than leaving that judgement to implementation heuristics.}
 \label{fig:semantic_gap}
 \end{figure}
 
 \subsection{Formal Problem Definition}
 
-\begin{definition}[The PHASMDAG Problem]\label{def:problem}
+\begin{definition}[The PHASMDAG-Core Problem]\label{def:problem}
 Design a DAG consensus protocol that:
 \begin{enumerate}[nosep]
-    \item preserves GhostDAG's ability to capture structural concurrency,
-    \item makes closure maturity a first-class protocol state,
-    \item derives finality from both order strength and closure maturity,
-    \item maintains security guarantees under the CBM without relying on the
-    Decoupling Assumption, and
-    \item degrades gracefully under LP attacks and bandwidth congestion.
+    \item preserves GhostDAG-style high-throughput structural ordering,
+    \item exposes dependency closure as a protocol-visible finality condition,
+    \item prevents closure evidence from becoming a cheap
+    ordering-manipulation vector,
+    \item grants strong confirmation only after closure certification, and
+    \item degrades under LP/BJ by delaying strong finality rather than
+    silently weakening safety semantics.
 \end{enumerate}
 \end{definition}
 
@@ -450,20 +477,22 @@ Design a DAG consensus protocol that:
 
 \subsection{Three Semantic Layers}
 
-PHASMDAG reasons over three explicit semantic layers:
+PHASMDAG-Core reasons over three explicit semantic layers:
 
 \begin{description}[nosep]
     \item[Layer A --- Order Layer] determines structural support and preferred
-    ordering relations in the DAG.  In PHASMDAG-$v_0$, this layer is fixed to a
+    ordering relations in the DAG.  In PHASMDAG-Core-$v_1$, this layer is fixed to a
     GhostDAG-style \emph{blue-work lineage}; alternative order cores are future
     variants, not part of the base protocol.
 
     \item[Layer B --- Closure Layer] measures whether a block and its dependency
     world are sufficiently mature, stable, and coherently visible across honest
-    nodes.  This is the additional layer absent from GhostDAG-family protocols.
+    nodes, and promotes only sufficiently stable evidence to a monotonic
+    certificate.  This is the additional layer absent from GhostDAG-family
+    protocols.
 
     \item[Layer C --- Finality Layer] derives confirmation/finality from both
-    order and closure, rather than from order alone.
+    order and certified closure, rather than from order alone.
 \end{description}
 
 The relationship between layers is illustrated in \Cref{fig:layers}.
@@ -482,26 +511,31 @@ The relationship between layers is illustrated in \Cref{fig:layers}.
 \node[ord] (A) at (0,0)
     {\textbf{Layer A: Order}\quad $\Ostr(B)$\\blue work, preferred chain, canonical rank};
 \node[cls] (B) at (0,-1.8)
-    {\textbf{Layer B: Closure}\quad $\Clvl(B)$\\$\Cdep(B)$, $\Ccoh(B)$, $\Cfr(B)$};
+    {\textbf{Layer B: Closure}\quad $\Clvl(B),\,\Certcls(B)$\\raw evidence, discounting, certificate};
 \node[fin] (C) at (0,-3.6)
-    {\textbf{Layer C: Finality}\quad $\Ffin(B)$\\confirmation grade derived from order and closure};
+    {\textbf{Layer C: Finality}\quad $\Ffin(B)$\\grade unlocked by order, certificate, and depth};
 \draw[arr] (A) -- (B);
 \draw[arr] (B) -- (C);
 \draw[arr, dashed, bend left=28] (A.east) to (C.east);
 \end{tikzpicture}
-\caption{The three semantic layers of PHASMDAG.  The Order layer feeds the
+\caption{The three semantic layers of PHASMDAG-Core.  The Order layer feeds the
 Closure layer; both jointly determine the Finality layer.  The dashed arrow
-indicates that Order also feeds Finality directly, not only through Closure.}
+indicates that Order also feeds Finality directly, but strong confirmation is
+not unlocked until the Closure layer issues a certificate.}
 \label{fig:layers}
 \end{figure}
 
 \subsection{Core Quantities}
 
-For each block $B$ in the observed DAG $\Dag = (V, E)$, two core
-quantities.
+For each block $B$ in the observed DAG $\Dag = (V, E)$,
+PHASMDAG-Core tracks four objects:
+the structural order score $\Ostr(B)$,
+the raw closure observation $\Clvl(B)$,
+the monotonic closure certificate $\Certcls(B)$,
+and the resulting finality grade $\Ffin(B)$.
 
 \begin{definition}[Order Strength]\label{def:order_strength}
-For PHASMDAG-$v_0$, the \emph{order strength} of block $B$ is the block's
+For PHASMDAG-Core-$v_1$, the \emph{order strength} of block $B$ is the block's
 position on the GhostDAG blue-work lineage:
 \begin{equation}\label{eq:order_strength}
 \Ostr(B) := \mathrm{BlueWork}(B), \qquad \Ostr(B) \in \Rset_{\ge 0}
@@ -519,11 +553,11 @@ The \emph{relevant support window} of block $B$ is
 \mathcal{W}_H(B) :=
 \{D \in \mathrm{desc}(B) : 0 < r(D) - r(B) \le H\}.
 \end{equation}
-All closure metrics in PHASMDAG-$v_0$ are computed over $\mathcal{W}_H(B)$ so
+All closure metrics in PHASMDAG-Core-$v_1$ are computed over $\mathcal{W}_H(B)$ so
 that they are bounded, deterministic, and auditable.
 \end{definition}
 
-\begin{definition}[Closure Sub-Metrics]\label{def:closure_submetrics}
+\begin{definition}[Closure Evidence Sub-Metrics]\label{def:closure_submetrics}
 Let $W(B)$ denote the PoW work attributed to block $B$.
 For each $D \in \mathcal{W}_H(B)$, let $\mathbf{1}_{\mathrm{closed}}(D)=1$ if
 all protocol-required predecessor objects of $D$ have been observed and
@@ -552,24 +586,61 @@ The sub-metrics are defined by:
 \label{eq:cfr}
 \end{align}
 with the convention that each ratio is $0$ when its denominator is $0$.
+Define also the support-window work evidence
+\begin{equation}\label{eq:work_window}
+\mathrm{Work}_H(B) := \sum_{D \in \mathcal{W}_H(B)} W(D).
+\end{equation}
 \end{definition}
 
-\begin{definition}[Closure Level]\label{def:closure_level}
-The \emph{closure level} of block $B$ is the deterministic aggregation of the
-three closure sub-metrics:
+\begin{definition}[Raw Closure Observation]\label{def:closure_level}
+The \emph{raw closure observation} of block $B$ is the deterministic
+aggregation of the three closure sub-metrics:
 \begin{equation}\label{eq:closure_level}
-\Clvl(B) = g_{v_0}\!\bigl(\Cdep(B),\,\Ccoh(B),\,\Cfr(B)\bigr)
+\Clvl(B) = g_{v_1}\!\bigl(\Cdep(B),\,\Ccoh(B),\,\Cfr(B)\bigr)
 \end{equation}
-where PHASMDAG-$v_0$ uses the weighted geometric mean
-\begin{equation}\label{eq:closure_level_v0}
-g_{v_0}(x,y,z) = x^{\eta_{\mathrm{dep}}}
+where PHASMDAG-Core-$v_1$ uses the weighted geometric mean
+\begin{equation}\label{eq:closure_level_v1}
+g_{v_1}(x,y,z) = x^{\eta_{\mathrm{dep}}}
 y^{\eta_{\mathrm{coh}}}
 z^{\eta_{\mathrm{fr}}},
 \qquad
 \eta_{\mathrm{dep}}+\eta_{\mathrm{coh}}+\eta_{\mathrm{fr}}=1.
 \end{equation}
 This aggregation makes a low value in any one dimension visibly reduce the
-overall closure score.
+overall raw closure score.
+For typographic continuity, the paper writes $\Clvl(B)$ for this node-local
+quantity.
+It is intentionally treated as an intermediate observation rather than as a
+direct trigger for strong confirmation.
+\end{definition}
+
+\begin{definition}[Closure Certificate]\label{def:closure_certificate}
+For PHASMDAG-Core-$v_1$, the certificate-side closure components are
+\begin{align}
+\Cdepcert(B)
+&= 
+\frac{\sum_{D \in \mathcal{W}_H(B)} W(D)\,\mathbf{1}_{\mathrm{closed}}(D)}
+{\mathrm{Work}_H(B)}
+\label{eq:cdep_cert} \\
+\Ccohcert(B)
+&= 
+\frac{\sum_{D \in \mathcal{W}_H(B)} W(D)\,\mathbf{1}[\pi_B(D)=c^\star(B)]}
+{\mathrm{Work}_H(B)}.
+\label{eq:ccoh_cert}
+\end{align}
+Define the certificate predicate
+\begin{equation}\label{eq:valid_cert}
+\mathrm{ValidCert}_{\mathcal{C}}(B)
+:=
+\bigl[\Cdepcert(B) \ge \theta_{\mathrm{dep}}\bigr]
+\wedge
+\bigl[\Ccohcert(B) \ge \theta_{\mathrm{coh}}\bigr]
+\wedge
+\bigl[\mathrm{Work}_H(B) \ge \theta_{\mathrm{work}}\bigr].
+\end{equation}
+Block $B$ is said to be \emph{closure-certified}, written $\Certcls(B)=1$,
+iff $\mathrm{ValidCert}_{\mathcal{C}}(B)$ holds; once issued, the certificate
+is monotonic.
 \end{definition}
 
 \begin{remark}\label{rem:closure_vs_delay}
@@ -580,15 +651,18 @@ This is a deliberate design choice: observed delays are node-specific and
 vulnerable to topology bias~\cite{wu2024security}, whereas structural
 completeness can, in principle, be determined deterministically from the DAG
 structure that honest nodes eventually agree on.
+Strong confirmation is therefore tied not to the live score $\Clvl(B)$ itself,
+but to the monotonic event $\Certcls(B)=1$.
 \end{remark}
 
-\begin{remark}[Why the decomposition matters]\label{rem:closure_decomp}
-The protocol now exposes three attack surfaces instead of hiding them inside
-one all-purpose closure scalar:
-\Cref{eq:cdep} captures dependency completeness,
-\Cref{eq:ccoh} captures descendant-support coherence, and
-\Cref{eq:cfr} captures frontier stability.
-Each can be analysed, simulated, and attacked separately.
+\begin{remark}[Why $\Cfr(B)$ is demoted in $v_1$]\label{rem:closure_decomp}
+\Cref{eq:cdep} and \Cref{eq:ccoh} are retained as the mandatory Grade~2
+certificate inputs because they speak directly to dependency closure and
+coherent descendant support.
+By contrast, $\Cfr(B)$ is more exposed to frontier steering and local tip
+instability.
+PHASMDAG-Core therefore keeps $\Cfr(B)$ as an advisory or deep-settlement
+quantity in $v_1$, rather than making it a brittle Grade~2 gate.
 \end{remark}
 \Cref{fig:closure_components} shows how these three quantities are read off from
 the local descendant structure around a block.
@@ -648,132 +722,66 @@ the local descendant structure around a block.
 $\mathcal{W}_H(B)$ supplies the auditable evidence set; $\Cdep(B)$ measures how
 much of that work is closure-complete, $\Ccoh(B)$ measures how much support
 flows through the canonical child $c^\star(B)$, and $\Cfr(B)$ measures whether
-frontier work is concentrated on the preferred tip $f^\star(B)$.}
+frontier work is concentrated on the preferred tip $f^\star(B)$.
+In PHASMDAG-Core-$v_1$, the first two quantities are mandatory Grade~2 inputs,
+while $\Cfr(B)$ is reserved for diagnostics or deep settlement.}
 \label{fig:closure_components}
 \end{figure}
 
-\subsection{Bi-Objective Consensus Functional}
+\subsection{Closure-Certified Finality, Not Closure-Weighted Ordering}
 
-The principal departure in PHASMDAG is the replacement of the purely
-structural objective~\eqref{eq:ghostdag_objective} with a bi-objective
-functional:
-
-\begin{definition}[Bi-Objective Consensus Functional]\label{def:biobjective}
-Given a candidate consensus-supporting structure $S$, the protocol evaluates:
-\begin{equation}\label{eq:biobjective}
-\Phifn(S) = \Uord(S) - \lambda \cdot \Rcls(S)
-\end{equation}
-where:
-\begin{itemize}[nosep]
-    \item $\Uord(S)$ rewards coherent structural order, useful concurrency,
-    descendant-backed support, and stable preferred-chain evolution under the
-    blue-work order core.
-    \item $\Rcls(S)$ is a protocol-visible closure-risk functional rather than a
-    prose penalty.
-    \item $\lambda > 0$ is a control parameter setting the tradeoff between
-    structural concurrency capture and closure conservatism.
-\end{itemize}
+\begin{definition}[Order-Preservation Principle]\label{def:order_preserving}
+Canonical order in PHASMDAG-Core-$v_1$ is determined by the GhostDAG-style
+blue-work order core alone.
+Immature closure may delay strong confirmation, but it must not by itself
+redirect canonical ordering.
 \end{definition}
 
-\begin{definition}[Closure-Risk Functional]\label{def:rclosure}
-For a candidate set $S$, define
-\begin{equation}\label{eq:rclosure}
-\Rcls(S) =
-a\sum_{B\in S}(1-\Cdep(B))
-{}+ b\sum_{B\in S}(1-\Ccoh(B))
-{}+ c\sum_{B\in S}(1-\Cfr(B))
-{}+ d\cdot \Frag(S)
-\end{equation}
-where $a,b,c,d \ge 0$ are protocol parameters.
-The first three terms are block-local penalties.
-The last term captures set-level brittleness:
-let
-\begin{equation}\label{eq:unresolved_set}
-\mathcal{U}(B) :=
-\{D \in \mathcal{W}_H(B) : \mathbf{1}_{\mathrm{closed}}(D)=0\},
-\end{equation}
-then
-\begin{equation}\label{eq:fragility_coupling}
-\Frag(S)
-:=
-\frac{1}{|P_2(S)|}
-\sum_{\{B_i,B_j\}\in P_2(S)}
-\frac{\sum_{D \in \mathcal{U}(B_i)\cap \mathcal{U}(B_j)} W(D)}
-{\sum_{D \in \mathcal{U}(B_i)\cup \mathcal{U}(B_j)} W(D)},
-\end{equation}
-with value $0$ when the denominator is $0$.
-Here $P_2(S)$ is the set of unordered pairs in $S$.
+\begin{definition}[Certificate-Gated Finality]\label{def:finality}
+Let $D(B)$ denote the settlement-depth or descendant-work condition used for
+deep settlement.
+The protocol exposes three grades:
+\begin{align}
+\mathsf{Grade}_1(B)
+&\iff
+\Ostr(B) \ge \tau_{\mathrm{ord}},
+\label{eq:grade1} \\
+\mathsf{Grade}_2(B)
+&\iff
+\mathsf{Grade}_1(B) \wedge \mathrm{ValidCert}_{\mathcal{C}}(B),
+\label{eq:grade2} \\
+\mathsf{Grade}_3(B)
+&\iff
+\mathsf{Grade}_2(B) \wedge D(B) \ge \tau_{\mathrm{settle}}
+\wedge \bigl[\Cfr(B) \ge \theta^{\mathrm{deep}}_{\mathrm{fr}}\bigr]_{\mathrm{optional}}.
+\label{eq:grade3}
+\end{align}
+The finality grade $\Ffin(B)$ is the greatest $i \in \{0,1,2,3\}$ such that
+$\mathsf{Grade}_i(B)$ holds, with $\mathsf{Grade}_0$ denoting the absence of
+protocol-level confirmation.
 \end{definition}
 
-\begin{remark}[Auditability of $\Rcls$]\label{rem:rclosure_audit}
-\Cref{eq:rclosure} makes closure risk auditable at two levels:
-nodes can explain which block-local term depressed a given block's score, and
-they can separately inspect whether a set of otherwise acceptable blocks shares
-the same unresolved support pockets through $\Frag(S)$.
-\end{remark}
-
-This marks the fundamental departure from GhostDAG:
-\textbf{the protocol no longer maximises structure alone.}
-It instead maximises a combination of structural utility and closure
-robustness.
-
-\begin{remark}[$\lambda$ semantics]\label{rem:lambda}
-The parameter $\lambda$ has operational and economic semantics:
-\begin{itemize}[nosep]
-    \item Small $\lambda$: the protocol is more optimistic, capturing more raw
-    concurrency but tolerating more closure fragility.
-    \item Large $\lambda$: the protocol is more conservative, sacrificing some
-    concurrency for stronger closure guarantees.
-    \item $\lambda \to 0$: PHASMDAG reduces to GhostDAG (pure structural
-    optimisation).
-\end{itemize}
-Whether $\lambda$ is a static protocol constant or an epoch-level
-consensus-updated parameter is an open design choice discussed in
-\Cref{sec:open}.
-\end{remark}
-
-\subsection{Finality Functional}
-
-\begin{definition}[Closure-Aware Finality]\label{def:finality}
-The finality of block $B$ is determined by a joint function:
-\begin{equation}\label{eq:finality}
-\Ffin(B) = f\bigl(\Ostr(B),\, \Clvl(B),\, D(B)\bigr)
-\end{equation}
-where $D(B)$ represents settlement depth / descendant accumulation.
-A simple parameterised form is:
-\begin{equation}\label{eq:finality_simple}
-\Ffin(B) = \sigma\bigl(\alpha \cdot \Ostr(B) + \beta \cdot \Clvl(B)
-+ \gamma \cdot D(B) - \tau\bigr)
-\end{equation}
-where $\sigma$ is a monotone squashing or thresholding function, and
-$\alpha, \beta, \gamma, \tau$ are protocol parameters.
-\end{definition}
-
-This means finality is no longer a direct byproduct of blue-work accumulation.
-A block with high order strength but low closure maturity receives only
-tentative confirmation; strong confirmation requires both conditions.
-
-\subsection{Three Confirmation Grades}
-
-The protocol exposes three grades of confirmation:
+PHASMDAG-Core treats closure as a monotonic finality certificate rather than a
+volatile ordering weight.
+Strong finality is serialized through dependency closure.
+This is the protocol's central asymmetry:
+positive closure evidence unlocks stronger confirmation, whereas missing
+closure evidence does not directly punish canonical order.
 
 \begin{description}[nosep]
     \item[Grade 1 --- Tentative Ordering]
-    Block $B$ is structurally well-placed in the DAG, but closure maturity is
-    not yet sufficient for strong trust.
-    Formally: $\Ostr(B)$ exceeds a threshold, but $\Clvl(B)$ is below the
-    strong-confirmation threshold.
+    The block is structurally well placed in the GhostDAG-style order core.
 
-    \item[Grade 2 --- Strong Confirmation]
-    Block $B$ has both high structural support and sufficiently high closure
-    maturity.
-    Formally: both $\Ostr(B)$ and $\Clvl(B)$ exceed their respective
-    thresholds.
+    \item[Grade 2 --- Closure-Certified Strong Confirmation]
+    The block satisfies the order threshold and has a valid closure
+    certificate.
+    Raw closure observations alone are insufficient.
 
     \item[Grade 3 --- Deep Settlement]
-    Block $B$ has accumulated enough joint support that rollback becomes
-    economically or combinatorially negligible.
-    Formally: $\Ffin(B)$ exceeds a high-confidence threshold.
+    The block is already Grade~2 and additionally satisfies a deep-settlement
+    condition.
+    Frontier stability may enter here as an optional strengthening, but it is
+    not required for Grade~2 in $v_1$.
 \end{description}
 
 This replaces the traditional ``one confirmation number fits all'' model with
@@ -796,9 +804,9 @@ The geometry of these grades is illustrated in \Cref{fig:grades_plane}.
 \draw[->, line width=0.9pt] (0,0) -- (6.45,0)
     node[below right, axislabel] {order strength $\Ostr(B)$};
 \draw[->, line width=0.9pt] (0,0) -- (0,4.3)
-    node[left, axislabel] {closure level $\Clvl(B)$};
+    node[left, axislabel] {certificate validity / settlement condition};
 \draw[dashed] (2.35,0) -- (2.35,4.0) node[below, axislabel] {$\tau_{\mathrm{ord}}$};
-\draw[dashed] (0,2.0) -- (6.05,2.0) node[left, axislabel] {$c_{\mathrm{threshold}}$};
+\draw[dashed] (0,2.0) -- (6.05,2.0) node[left, axislabel] {$\mathrm{ValidCert}_{\mathcal{C}}$};
 
 \node[regionlabel] at (1.15,2.05) {No confirmation\\or weak ordering};
 \node[regionlabel] at (4.2,0.95) {Grade 1\\Tentative ordering};
@@ -806,15 +814,61 @@ The geometry of these grades is illustrated in \Cref{fig:grades_plane}.
 
 \draw[-{Stealth[length=2.2mm]}, line width=0.9pt, draw=redblock!80!black]
     (6.05,3.0) -- (6.45,3.0);
-\node[callout, minimum width=2.75cm, minimum height=1.1cm] at (8.0,3.0)
+\node[callout, minimum width=2.85cm, minimum height=1.1cm] at (8.1,3.0)
     {Grade 3\\Deep settlement\\requires sufficient $D(B)$};
 \end{tikzpicture}
-\caption{Confirmation-grade geometry.  Grade~1 requires sufficiently strong
-structural ordering, Grade~2 additionally requires closure above the strong
-confirmation threshold, and Grade~3 adds sufficient settlement depth on top of
-Grade~2.}
+\caption{Schematic confirmation-grade geometry.
+A robust high-throughput DAG should parallelise ordering, not finality.
+Grade~2 is unlocked by certificate validity rather than by a volatile local
+closure score; Grade~3 adds deep settlement on top of Grade~2.}
 \label{fig:grades_plane}
 \end{figure}
+
+\subsection{Diagnostic Closure-Risk Metrics and Optional Extensions}
+
+\begin{definition}[Diagnostic Closure-Risk Functional]\label{def:rclosure}
+For a candidate set $S$, define the diagnostic closure-fragility metric
+\begin{equation}\label{eq:rclosure}
+\Rcls(S) =
+a\sum_{B\in S}(1-\Cdep(B))
+{}+ b\sum_{B\in S}(1-\Ccoh(B))
+{}+ c\sum_{B\in S}(1-\Cfr(B))
+{}+ d\cdot \Frag(S)
+\end{equation}
+where $a,b,c,d \ge 0$ and
+\begin{equation}\label{eq:unresolved_set}
+\mathcal{U}(B) :=
+\{D \in \mathcal{W}_H(B) : \mathbf{1}_{\mathrm{closed}}(D)=0\},
+\end{equation}
+\begin{equation}\label{eq:fragility_coupling}
+\Frag(S)
+:=
+\frac{1}{|P_2(S)|}
+\sum_{\{B_i,B_j\}\in P_2(S)}
+\frac{\sum_{D \in \mathcal{U}(B_i)\cap \mathcal{U}(B_j)} W(D)}
+{\sum_{D \in \mathcal{U}(B_i)\cup \mathcal{U}(B_j)} W(D)},
+\end{equation}
+with value $0$ when the denominator is $0$.
+\end{definition}
+
+\begin{remark}[Status of $\Rcls$ and $\lambda$ in $v_1$]\label{rem:rclosure_audit}
+In PHASMDAG-Core, $\Rcls$ is a diagnostic and simulation object in $v_1$, not
+a hard canonical-ordering penalty.
+It may still be useful for empirical comparison, reporting closure fragility,
+or studying optional miner-local template preferences in simulations.
+However, if $\Rcls$ directly affects canonical ordering, closure manipulation
+becomes a consensus-steering problem.
+PHASMDAG-Core therefore deliberately avoids hard $\Rcls$ penalties in the
+deployed ordering rule.
+\end{remark}
+
+\begin{remark}[$\lambda$ is not consensus-critical in $v_1$]\label{rem:lambda}
+PHASMDAG-Core has no dynamic $\lambda$, no telemetry-driven local $\lambda$,
+and no per-node adaptive $\lambda$ in the consensus rule.
+If a future extension studies a $\lambda$-bearing objective, it should be
+understood as a separate protocol family that requires its own
+incentive-compatibility analysis.
+\end{remark}
 
 \subsection{Confirmation Invariants}
 
@@ -854,118 +908,68 @@ The CBM threat model of~\cite{wu2024security} is adopted with three layers:
     stress, including orphan-pool dynamics and header-body skew.
 \end{enumerate}
 
-\subsection{Chain Growth under Closure Awareness}
+\subsection{Closure Manipulation and Payoff Bounding}\label{sec:incentive}
 
-This subsection is intentionally preliminary.
-It does \emph{not} claim a completed security proof for PHASMDAG.
-Instead, it records one concrete modelling ansatz for how closure awareness may
-change the LP security envelope, assuming the deterministic $v_0$ closure
-metric and eventual convergence of its sub-metrics.
+This section is intentionally conservative.
+It does \emph{not} claim that PHASMDAG-Core eliminates closure manipulation.
+Rather, the design objective is to limit the payoff of such manipulation by
+refusing to let immature closure directly steer canonical order.
 
-\begin{lemma}[Preliminary closure-modulated chain-growth heuristic]\label{lem:closure_growth}
-Under CBM with LP attack parameter $s$, let $\Clvl_{\min}(t)$ denote the
-minimum closure level among blocks that contribute to the honest chain's
-structural support at time $t$.
-Under the heuristic assumption that unresolved closure mass linearly modulates
-delay exposure, the effective chain growth rate is:
-\begin{equation}\label{eq:closure_growth}
-g_{\mathrm{PHASM}} = (1 - \sigma)\,\gamma_{\mathrm{eff}}\,f
-\end{equation}
-where:
-\begin{equation}\label{eq:gamma_eff}
-\gamma_{\mathrm{eff}}
-= \frac{\alpha \cdot \Clvl_{\min}}{1 + \alpha f \cdot
-\mathbb{E}[\Delta] \cdot (1 - \Clvl_{\min})}
-\end{equation}
-\end{lemma}
-
-\begin{proof}[Proof sketch]
-Under GhostDAG (\Cref{thm:cbm}), the chain growth rate is
-$g = (1-\sigma)\gamma f$ where $\gamma = \alpha/(1 + \alpha f \mathbb{E}[\Delta])$.
-The key quantity is $\mathbb{E}[\Delta]$, the expected actual delay including
-processing delay from late predecessors.
-
-In PHASMDAG, the bi-objective functional $\Phifn = \Uord - \lambda \Rcls$
-weights each block's contribution to structural support by its closure
-maturity.  Specifically, a block $B$ with closure level $\Clvl(B)$ contributes
-an effective weight of $w(B) = \Clvl(B)$ to the order utility; the remaining
-fraction $(1 - \Clvl(B))$ is absorbed by the closure risk penalty.
-
-This means that only the \emph{resolved} portion of the dependency world
-contributes to effective chain growth.  The unresolved fraction
-$(1 - \Clvl_{\min})$ carries the delay risk.  Substituting
-$\mathbb{E}[\Delta] \cdot (1 - \Clvl_{\min})$ for $\mathbb{E}[\Delta]$
-in \Cref{thm:cbm}, and noting that the numerator's honest hash power is
-modulated by $\Clvl_{\min}$ (since only closure-mature blocks contribute
-full weight), we obtain:
-\begin{equation*}
-\gamma_{\mathrm{eff}} = \frac{\alpha \cdot \Clvl_{\min}}
-{1 + \alpha f \cdot \mathbb{E}[\Delta] \cdot (1 - \Clvl_{\min})}
-\end{equation*}
-When $\Clvl_{\min} = 1$ (full closure), this reduces to $\gamma_{\mathrm{eff}}
-= \alpha / (1 + 0) = \alpha$, which is the GhostDAG rate under UDBM with
-zero LP effect---consistent with the intuition that full closure maturity
-eliminates delay exposure.  When $\Clvl_{\min} = 0$ (complete closure
-failure), $\gamma_{\mathrm{eff}} = 0$, reflecting that no effective chain
-growth is possible when no block's dependency world is mature.
-This derivation should be read as a candidate parameterisation, not as a
-finished reduction from the CBM theorem of Wu et al.
-\end{proof}
-
-\begin{proposition}[Preliminary dominance region]\label{prop:graceful}
-Under LP attack, PHASMDAG's effective security threshold
-$\gamma_{\mathrm{eff}}$ dominates GhostDAG's $\gamma$ within the parameter
-region
-\begin{equation}\label{eq:graceful}
-\Clvl_{\min} \ge \frac{1}{1 + 2\alpha f \mathbb{E}[\Delta]}.
-\end{equation}
-Within this region, the heuristic ansatz of \Cref{lem:closure_growth} implies
-$\gamma_{\mathrm{eff}} \ge \gamma$.
+\begin{proposition}[Payoff-bounding design intention]\label{prop:graceful}
+Under the PHASMDAG-Core-$v_1$ design, an attacker may delay closure evidence
+and thereby postpone Grade~2 confirmation.
+However, because closure does not directly alter canonical order in $v_1$,
+such manipulation is primarily a latency-griefing vector rather than an
+ordering-redirection vector.
 \end{proposition}
 
 \begin{proof}[Proof sketch]
-Compare $\gamma$ from \Cref{thm:cbm} with $\gamma_{\mathrm{eff}}$ from
-\Cref{lem:closure_growth}:
-\begin{align}
-\gamma &= \frac{\alpha}{1 + \alpha f \cdot \mathbb{E}[\Delta]}
-\label{eq:gamma_ghost} \\
-\gamma_{\mathrm{eff}} &= \frac{\alpha \cdot \Clvl_{\min}}
-{1 + \alpha f \cdot \mathbb{E}[\Delta] \cdot (1 - \Clvl_{\min})}
-\label{eq:gamma_closure_modulated}
-\end{align}
-Cross-multiplying the claim $\gamma_{\mathrm{eff}} \ge \gamma$ gives
-\begin{equation*}
-\alpha \cdot \Clvl_{\min} \cdot (1 + \alpha f \mathbb{E}[\Delta])
-\ge \alpha \cdot (1 + \alpha f \mathbb{E}[\Delta](1 - \Clvl_{\min}))
-\end{equation*}
-Simplify (both sides have $\alpha > 0$):
-\begin{equation*}
-\Clvl_{\min} + \alpha f \mathbb{E}[\Delta] \cdot \Clvl_{\min}
-\ge 1 + \alpha f \mathbb{E}[\Delta] - \alpha f \mathbb{E}[\Delta] \cdot \Clvl_{\min}
-\end{equation*}
-Rearranging:
-\begin{equation*}
-2 \alpha f \mathbb{E}[\Delta] \cdot \Clvl_{\min} + \Clvl_{\min} - 1
-\ge 0
-\end{equation*}
-This holds when $\Clvl_{\min}$ is sufficiently large relative to the
-LP effect.  Specifically, the inequality holds when
-$\Clvl_{\min} \ge 1 / (1 + 2\alpha f \mathbb{E}[\Delta])$.
-Since the right-hand side is always $< 1$, there exists a non-trivial
-region where the heuristic threshold of PHASMDAG exceeds GhostDAG's.
+By \Cref{def:order_preserving}, canonical order depends only on the
+GhostDAG-style order core and its fixed consensus parameters.
+Closure evidence enters at the Grade~2 boundary through
+\Cref{eq:valid_cert,eq:grade2}, not through the ordering rule itself.
+Withholding or selectively releasing predecessor information may therefore
+delay the moment at which $\mathrm{ValidCert}_{\mathcal{C}}(B)$ becomes true,
+but it does not by itself re-rank a block that is already canonically ordered.
 \end{proof}
 
-\begin{remark}[Interpretation cost of closure awareness]\label{rem:closure_cost}
-\Cref{prop:graceful} does \emph{not} establish a universal improvement result.
-It identifies a preliminary dominance region under the specific heuristic
-ansatz of \Cref{lem:closure_growth}.
-The cost is that blocks with $\Clvl < 1$ receive weaker finality
-(\Cref{def:finality}), which means the protocol may delay strong confirmation
-for blocks whose dependency world is immature.
-This behaviour is methodologically preferable: strong confirmation should be
-delayed rather than granted on the basis of a structural score that ignores
-closure fragility.
-\end{remark}
+The protocol deliberately bounds the payoff of closure manipulation:
+adversarially delayed closure evidence can degrade latency, but should not
+become a cheap consensus-steering lever.
+
+\paragraph{Predecessor withholding.}
+An attacker may withhold a predecessor block $B^\star$ so as to delay
+dependency closure for descendants that rely upon it.
+In GhostDAG, such delay risks being mistaken for weak structural support.
+In PHASMDAG-Core, the intended effect is narrower:
+the victim's block may remain in Grade~1 for longer, but tentative canonical
+order is not thereby revoked.
+
+\paragraph{Timed closure release.}
+An attacker may release previously withheld closure evidence at a moment chosen
+to accelerate a preferred branch's transition from Grade~1 to Grade~2.
+This remains a first-class strategic threat.
+The v1 response is not to claim that the threat disappears, but to ensure that
+its effect is confined chiefly to certification latency rather than to
+canonical-order steering.
+
+\paragraph{Frontier steering.}
+Because frontier state can be noisy and locally unstable, the v1 protocol does
+not let $\Cfr(B)$ serve as a mandatory Grade~2 certificate gate.
+This reduces the extent to which local frontier manipulation can become a
+brittle strong-confirmation trigger.
+
+\paragraph{$\Rcls$ gaming.}
+If $\Rcls$ were made consensus-critical, miners could attempt to shape closure
+fragility metrics so as to steer order selection itself.
+PHASMDAG-Core therefore excludes $\Rcls$ from the v1 canonical-order rule and
+retains it only as a diagnostic or simulation object.
+
+These attacks cannot presently be eliminated.
+The design objective is instead to prevent them from maturing into safety
+failures or canonical-order steering attacks.
+That is the principal sense in which PHASMDAG-Core claims robustness under
+CBM pressure.
 
 \subsection{Comparison with GhostDAG under LP Attack}
 
@@ -977,110 +981,67 @@ closure fragility.
 \renewcommand{\arraystretch}{1.1}
 \begin{tabularx}{0.96\textwidth}{@{}L{3.2cm}YY@{}}
 \toprule
-\textbf{Property} & \textbf{GhostDAG} & \textbf{PHASMDAG} \\
+\textbf{Property} & \textbf{GhostDAG} & \textbf{PHASMDAG-Core} \\
 \midrule
-Chain growth rate
-    & $g = (1{-}\sigma)\gamma f$
-    & $g = (1{-}\sigma)\gamma_{\mathrm{eff}} f$ \\
-Security threshold
-    & $\beta < \gamma$
-    & candidate $\beta < \gamma_{\mathrm{eff}}$ \\
-Delay exposure
-    & $\mathbb{E}[\Delta]$ (unmodulated)
-    & $\mathbb{E}[\Delta]\cdot(1{-}\Clvl_{\min})$ \\
-Closure fragility
-    & Invisible to protocol
-    & First-class state $\Clvl(B)$ \\
-Strong finality basis
-    & $\Ostr(B)$ alone
-    & $\Ostr(B) \wedge \Clvl(B)$ \\
+Tentative-order basis
+    & structural order also carries confirmation semantics
+    & same GhostDAG-style order core \\
+Strong-finality basis
+    & structural order is used as proxy
+    & $\Ostr(B) \wedge \mathrm{ValidCert}_{\mathcal{C}}(B)$ \\
+Effect of predecessor withholding
+    & may silently degrade both order and confirmation semantics
+    & primarily delays Grade~2 certification \\
+Effect of frontier steering
+    & entangled with confirmation semantics
+    & mostly pushed to Grade~3 or diagnostics \\
+Consensus-steering payoff from missing closure
+    & implicit and potentially large
+    & deliberately bounded by design \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\Cref{tab:comparison} summarises the key differences.
-The essential observation is that PHASMDAG \emph{absorbs} the LP effect into
-the protocol's mathematical core rather than treating it as an external
-implementation concern.
+\Cref{tab:comparison} highlights the central asymmetry:
+PHASMDAG-Core does not claim to eliminate LP/BJ stress.
+It instead aims to make the semantic consequences of such stress explicit by
+withholding strong finality until closure has been certified.
 
-\subsection{Quality under Heterogeneous Visibility}
+\subsection{Certificate Coherence Theorem Target}
 
-Under LP attack, different honest nodes may have different views of the DAG.
-GhostDAG's security proofs assume that honest nodes converge to consistent
-blue-work orderings; under CBM, this convergence may be delayed or incomplete.
+Under LP attack, different honest nodes may still see different local evidence
+for a period of time.
+The central theorem target is therefore no longer merely closure convergence,
+but certificate coherence across honest nodes.
 
-\begin{conjecture}[Closure coherence theorem target]\label{conj:coherence}
-Under CBM with honest majority, if $\Clvl(B) \ge c_{\mathrm{threshold}}$ at
-some honest node $v$, then within bounded additional time $\Delta_{\mathrm{coherence}}$,
-all honest nodes will also observe $\Clvl(B) \ge c_{\mathrm{threshold}} - \epsilon$
-for some small $\epsilon > 0$.
+\begin{conjecture}[Certificate coherence theorem target]\label{conj:coherence}
+Under CBM with honest majority, if some honest node $v$ issues
+${\Certcls}_v(B)=1$, then within bounded additional time
+$\Delta_{\mathrm{coherence}}$ all honest nodes will either also issue
+${\Certcls}(B)=1$ or reject certification under the same deterministic
+support-window evidence rules.
 \end{conjecture}
 
-\noindent This conjecture, if proven, would establish that closure level
-converges across honest nodes---a prerequisite for closure-aware finality to be
-consistent.  It is the \emph{central theorem target} of PHASMDAG:
-without sufficient convergence of $\Cdep$, $\Ccoh$, and $\Cfr$, Grade~2 cannot
-be a consensus-meaningful object.
-Its proof or disproof is therefore a primary goal of the formal modelling
-roadmap (\Cref{sec:formal}).
+\noindent If established, \Cref{conj:coherence} would show that the Grade~2
+predicate is not merely a local heuristic but a consensus-meaningful object.
+Without such certificate coherence, PHASMDAG-Core would remain only a
+descriptively attractive semantics rather than a defensible finality rule.
 
-\subsection{Incentive Compatibility and Closure Manipulation}\label{sec:incentive}
+\subsection{Heuristic Note on Confirmation Growth}
 
-Introducing $\Clvl(B)$ and $\Rcls(S)$ as first-class protocol objects creates
-a new strategic attack surface that does not exist in GhostDAG.  In GhostDAG,
-the only rational miner behaviour is to extend the heaviest blue-work chain;
-there is no protocol-internal incentive to manipulate structural scores.
-In PHASMDAG, miners may profit from manipulating closure evidence.
-This draft therefore does \emph{not} claim that honest, immediate broadcasting
-is already a Nash equilibrium under PHASMDAG.
+Any quantitative dominance claim should be treated as heuristic rather than as
+the primary security result of the paper.
+The primary safety improvement in PHASMDAG-Core is semantic:
+strong confirmation is withheld until dependency closure is certified.
 
-\paragraph{Closure suppression.}
-A miner could withhold a predecessor block $B^*$ to deliberately depress
-$\Clvl(B)$ for a rival's blocks that reference $B^*$ transitively.
-This delays the rival's strong confirmation and may shift the preferred-chain
-tip toward the attacker's own blocks, since $\Rcls$ penalises the rival's
-dependency fragility.
-
-\paragraph{Closure inflation.}
-Conversely, a miner could strategically release closure evidence (by
-broadcasting withheld predecessors) at a time chosen to maximise the boost to
-their own blocks' $\Clvl$, potentially timing the release to outcompete a
-rival's chain tip just before a difficulty retarget.
-
-\paragraph{Frontier manipulation.}
-Since $\Clvl(B)$ depends on descendant support and frontier concentration
-(\Cref{eq:ccoh,eq:cfr}),
-a miner could mine descendant blocks that strategically include or exclude
-closure-confirming references, steering the frontier to inflate or suppress
-$\Clvl$ for selected blocks.
-
-These threats are not theoretical curiosities---they are the direct
-consequence of making closure a consensus-relevant quantity.
-The full game-theoretic treatment is left for future work, but the
-present paper identifies the
-following as \emph{required incentive-compatibility goals} for any viable
-PHASMDAG specification:
-\begin{enumerate}[nosep]
-    \item \textbf{Non-profitability of suppression}: withholding predecessors
-    should not yield a net revenue advantage, accounting for the attacker's
-    own lost block rewards and the cost of maintaining the suppression.
-    \item \textbf{Convergence under strategic release}: even if miners
-    strategically time the release of closure evidence, $\Clvl(B)$ should
-    converge to the same value it would have reached under honest immediate
-    broadcasting, within bounded additional time.
-    \item \textbf{Sybil resistance}: cheap creation of low-work descendant
-    blocks must not inflate $\Clvl(B)$; the work-weighted definitions in
-    \Cref{eq:cdep,eq:ccoh,eq:cfr} are intended to enforce this.
-\end{enumerate}
-
-\begin{remark}[Relationship to selfish mining]\label{rem:selfish}
-Closure manipulation is structurally similar to selfish mining~\cite{zhang2019common}:
-both exploit information asymmetry and timing control.
-However, closure manipulation operates on a different axis---it manipulates
-\emph{dependency maturity} rather than \emph{structural weight}---and may
-interact non-trivially with selfish mining strategies.
-A complete analysis of the joint strategy space is an important direction for
-future work.
+\begin{remark}[Optional analytical intuition]\label{rem:gamma_heuristic}
+It remains heuristically useful to distinguish tentative-order growth from
+Grade~2 confirmation growth.
+Tentative order may continue to inherit the GhostDAG-style expression
+$g^{(1)}_{\mathrm{PHASM}}=(1-\sigma)\gamma f$, while Grade~2 growth may be
+viewed as scaled by a certificate-issuance factor $p_{\mathrm{cert}}(T)$.
+However, this intuition is not the principal safety claim of the protocol and
+should be understood as an analytical convenience only.
 \end{remark}
 
 % =====================================================================
@@ -1101,11 +1062,13 @@ Each block $B$ maintains three logical state components:
     \item \textbf{Closure state} $\Sigma_{\mathrm{cls}}(B)$:
     relevant support window $\mathcal{W}_H(B)$, the three sub-metrics
     $\Cdep(B)$, $\Ccoh(B)$, $\Cfr(B)$, unresolved-support set
-    $\mathcal{U}(B)$, and aggregate closure level $\Clvl(B)$.
+    $\mathcal{U}(B)$, support-window work evidence $\mathrm{Work}_H(B)$,
+    certificate-side metrics $\Cdepcert(B)$ and $\Ccohcert(B)$,
+    raw closure observation $\Clvl(B)$, and certificate status $\Certcls(B)$.
 
     \item \textbf{Finality state} $\Sigma_{\mathrm{fin}}(B)$:
-    tentative inclusion status, strong confirmation status, settlement
-    confidence $\Ffin(B)$.
+    tentative-order status, closure-certified strong-confirmation status, deep
+    settlement status, and finality grade $\Ffin(B)$.
 \end{enumerate}
 
 The full state machine is the product
@@ -1118,7 +1081,7 @@ then $\Sigma_{\mathrm{fin}}$.
 
 \subsection{Local Views and Disagreement Metrics}
 
-The key modelling difficulty is that PHASMDAG is evaluated under partial and
+The key modelling difficulty is that PHASMDAG-Core is evaluated under partial and
 heterogeneous visibility.
 The protocol therefore requires an explicit notation for node-local views and
 for cross-node disagreement in closure scores.
@@ -1128,8 +1091,7 @@ Let $\Dag_v(t)$ denote the accepted header-DAG observed by honest node $v$ at
 time $t$.
 All protocol quantities are node-local during execution:
 \[
-\Ostr_v(B,t), \qquad \Clvl_v(B,t), \qquad \Ffin_v(B,t), \qquad
-\Phifn_v(S,t).
+\Ostr_v(B,t), \qquad \Clvl_v(B,t), \qquad {\Certcls}_v(B,t), \qquad \Ffin_v(B,t).
 \]
 Consensus safety requires that these local quantities converge sufficiently
 fast after network stabilisation.
@@ -1148,11 +1110,11 @@ The central modelling objective is to show that $\Delta_{\Clvl}(B,t)$ becomes
 small quickly enough to support consistent Grade~2 decisions.
 \end{definition}
 
-\begin{definition}[Closure-Coherent Strong Confirmation Target]\label{def:coherent_strong}
-A block $B$ is said to satisfy the \emph{closure-coherent strong-confirmation
+\begin{definition}[Certificate-Coherent Strong Confirmation Target]\label{def:coherent_strong}
+A block $B$ is said to satisfy the \emph{certificate-coherent strong-confirmation
 target} at time $t$ if
 \begin{equation}\label{eq:coherent_strong}
-\min_{v \in H_t} \Clvl_v(B,t) \ge c_{\mathrm{threshold}}
+\forall v \in H_t,\ {\Certcls}_v(B,t)=1
 \qquad\text{and}\qquad
 \Delta_{\Clvl}(B,t) \le \varepsilon_{\mathrm{coh}}
 \end{equation}
@@ -1174,36 +1136,36 @@ This convergence target is visualised in \Cref{fig:closure_convergence}.
 \draw[->, line width=0.9pt] (0,0) -- (6.15,0)
     node[below right, axislabel] {time $t$};
 \draw[->, line width=0.9pt] (0,0) -- (0,1.02)
-    node[left, axislabel] {node-local $\Clvl_v(B,t)$};
+    node[left, axislabel] {node-local certificate-side evidence};
 \draw[dashed] (0,0.62) -- (6.0,0.62);
-\node[lab, anchor=east] at (0,0.62) {$c_{\mathrm{threshold}}$};
+\node[lab, anchor=east] at (0,0.62) {issuance boundary};
 
 \draw[blueblock!80!black, thick]
     plot[smooth] coordinates {(0.35,0.22) (1.1,0.33) (2.0,0.49) (3.0,0.67) (4.2,0.78) (5.5,0.83)};
 \draw[closurecolor!75!black, thick]
     plot[smooth] coordinates {(0.35,0.46) (1.1,0.52) (2.0,0.58) (3.0,0.69) (4.2,0.76) (5.5,0.81)};
 
-\node[lab, anchor=west] at (5.56,0.83) {$\Clvl_u(B,t)$};
-\node[lab, anchor=west] at (5.56,0.81) {$\Clvl_v(B,t)$};
+\node[lab, anchor=west] at (5.56,0.83) {node $u$};
+\node[lab, anchor=west] at (5.56,0.81) {node $v$};
 \draw[dotted, thick] (3.6,0) -- (3.6,0.9);
 \node[lab, anchor=north] at (3.6,0) {$t^\star$};
 \draw[<->, semithick] (4.5,0.76) -- (4.5,0.79);
-\node[lab, anchor=west] at (4.58,0.775) {$\Delta_{\Clvl}(B,t) \le \varepsilon_{\mathrm{coh}}$};
+\node[lab, anchor=west] at (4.58,0.775) {cross-node gap $\le \varepsilon_{\mathrm{coh}}$};
 \node[lab] at (4.7,0.69) {coherent region};
 \end{tikzpicture}
 \caption{Closure coherence as a convergence target.  Strong confirmation should
-only become globally meaningful once node-local closure estimates are both
-above $c_{\mathrm{threshold}}$ and sufficiently close to one another.}
+only become globally meaningful once node-local certificate-side evidence lies
+near the issuance boundary and cross-node disagreement is sufficiently small.}
 \label{fig:closure_convergence}
 \end{figure}
 
 \subsection{Block Processing Algorithm}
 
 \Cref{alg:process} specifies the high-level block processing pipeline for
-PHASMDAG, making the three-layer computation order explicit.
+PHASMDAG-Core, making the three-layer computation order explicit.
 
 \begin{algorithm}[t]
-\caption{PHASMDAG Block Processing}\label{alg:process}
+\caption{PHASMDAG-Core Block Processing}\label{alg:process}
 \begin{algorithmic}[1]
 \Require Incoming block $B_{\mathrm{new}}$ with parent set $P$
 \Ensure Updated DAG state $\Sigma$
@@ -1219,40 +1181,44 @@ PHASMDAG, making the three-layer computation order explicit.
 \State Identify affected ancestors $A$ whose support windows include $B_{\mathrm{new}}$
 \For{each affected block $A$}
     \State Update $\mathcal{W}_H(A)$ and $\mathcal{U}(A)$
-    \State Recompute $\Cdep(A)$, $\Ccoh(A)$, and $\Cfr(A)$ \Comment{Approach A / $v_0$}
-    \State $\Clvl(A) \gets g_{v_0}\!\bigl(\Cdep(A), \Ccoh(A), \Cfr(A)\bigr)$
+    \State Recompute $\Cdep(A)$, $\Ccoh(A)$, and $\Cfr(A)$ \Comment{Approach A / $v_1$}
+    \State $\Clvl(A) \gets g_{v_1}\!\bigl(\Cdep(A), \Ccoh(A), \Cfr(A)\bigr)$
+    \State Compute $\mathrm{Work}_H(A)$
+    \State Recompute $\Cdepcert(A)$ and $\Ccohcert(A)$
+    \If{$\Cdepcert(A)\ge\theta_{\mathrm{dep}} \wedge \Ccohcert(A)\ge\theta_{\mathrm{coh}} \wedge \mathrm{Work}_H(A)\ge\theta_{\mathrm{work}}$}
+        \State Set $\Certcls(A)\gets 1$ \Comment{Monotonic once issued}
+    \EndIf
 \EndFor
 \State Initialise $\Sigma_{\mathrm{cls}}(B_{\mathrm{new}})$
 \Statex
 \State \textbf{// --- Layer C: Finality ---}
-\State Compute $\Ffin(B) = f(\Ostr(B), \Clvl(B), D(B))$ for affected blocks
+\State Compute Grade predicates using \Cref{eq:grade1,eq:grade2,eq:grade3}
 \State Assign confirmation grade:
-\If{$\Ffin(B) \ge \tau_{\mathrm{settle}}$}
+\If{$\mathsf{Grade}_3(B)$}
     \State Grade 3: Deep Settlement
-\ElsIf{$\Ostr(B) \ge \tau_{\mathrm{ord}} \wedge \Clvl(B) \ge c_{\mathrm{threshold}}$}
+\ElsIf{$\mathsf{Grade}_2(B)$}
     \State Grade 2: Strong Confirmation
-\ElsIf{$\Ostr(B) \ge \tau_{\mathrm{ord}}$}
+\ElsIf{$\mathsf{Grade}_1(B)$}
     \State Grade 1: Tentative Ordering
 \Else
     \State No confirmation
 \EndIf
 \State Update $\Sigma_{\mathrm{fin}}(B_{\mathrm{new}})$ and affected blocks
-\Statex
-\State \textbf{// --- Propagation decision ---}
-\State Compute $\Phifn(S)$ for candidate mining templates
-\State Select template maximising $\Uord - \lambda \Rcls$
 \end{algorithmic}
 \end{algorithm}
 
-\subsection{Closure Level Computation}
+\subsection{Raw Closure Observation and Certificate Computation}
 
-The most critical modelling challenge is the computation of $\Clvl(B)$.
-PHASMDAG now treats this as a family of explicitly separated design choices,
-with one standardised instantiation and one experimental variant.
+The most critical modelling challenge is the computation of raw closure
+observations together with the monotonic closure certificate.
+PHASMDAG-Core treats this as a deliberately conservative design space:
+one deployable certificate-oriented instantiation is standardised for $v_1$,
+while more aggressive closure-aware ordering ideas are kept outside the core
+protocol.
 
-\paragraph{Approach A: Deterministic attestation-based closure ($v_0$).}
+\paragraph{Approach A: Deterministic closure certification over a bounded support window ($v_1$).}
 Approach~A is the \textbf{only} standardised closure computation in
-PHASMDAG-$v_0$.
+PHASMDAG-Core-$v_1$.
 Its simplest descendant-attestation form is the PoW-weighted statistic
 \begin{equation}\label{eq:closure_attestation_work}
 \Clvl_A(B) =
@@ -1265,53 +1231,60 @@ This makes closure evidence an economic-security quantity rather than a raw
 descendant count, and prevents a minority miner from cheaply inflating
 closure with low-value descendants alone.
 It instantiates $\Cdep(B)$, $\Ccoh(B)$, and $\Cfr(B)$ exactly as in
-\Cref{eq:cdep,eq:ccoh,eq:cfr} and aggregates them with
-\Cref{eq:closure_level_v0}.
+\Cref{eq:cdep,eq:ccoh,eq:cfr}; only the first two enter the Grade~2
+certificate rule in $v_1$.
 Equation~\eqref{eq:closure_attestation_work} is the unwindowed intuition;
-PHASMDAG-$v_0$ implements the same idea through the bounded support-window
-version $\Cdep(B)$ in \Cref{eq:cdep}.
+PHASMDAG-Core-$v_1$ implements the same idea through the bounded support-window
+version of \Cref{eq:cdep,eq:ccoh,eq:work_window}.
 It uses only structural evidence observable in the accepted header-DAG plus the
 validation state required for $\mathbf{1}_{\mathrm{closed}}$.
-This makes the metric deterministic, decomposable, and auditable.
+Certificate issuance is then determined by \Cref{eq:valid_cert}.
+No wall-clock propagation delay, dynamic parameter, or frontier-only trigger is
+required for Grade~2 in this conservative instantiation.
+This makes the construction deterministic, decomposable, auditable, and closer
+to a plausible deployable core.
 
-\paragraph{Approach B: Probabilistic delay-posterior closure.}
-Define $\Clvl(B)$ as the probability that $B$'s full dependency world has
-been received by a sufficient fraction of honest nodes:
-\begin{equation}\label{eq:closure_prob}
-\Clvl_B(B) = \Pr\!\Bigl[\text{fraction of honest nodes that have accepted
-all preds of } B \ge \theta \;\Big|\; \text{observed evidence}\Bigr]
+\paragraph{Approach B: Experimental closure-weighted ordering extension.}
+An alternative line of design would feed a closure-fragility functional
+directly back into ordering, for example through a score of the form
+\begin{equation}\label{eq:closure_ordering_future}
+\Phifn(S) = \Uord(S) - \lambda\,\Rcls(S).
 \end{equation}
-This is more expressive---it can incorporate timing evidence and network
-models---but harder to compute consistently across nodes and harder to prove
-secure.
+Such an approach is attractive because it appears to internalise LP/BJ risk
+inside the ordering rule itself.
+However, it also turns missing closure evidence into a strategic resource that
+may be used to steer order.
+For that reason, PHASMDAG-Core excludes this idea from $v_1$ and treats it as
+future work.
 
 \begin{table}[t]
 \centering
-\caption{Closure computation strategies}
+\caption{Core vs.\ experimental closure-handling strategies}
 \label{tab:closure_approaches}
 \begin{tabular}{@{}lcc@{}}
 \toprule
 \textbf{Property} & \textbf{Approach A} & \textbf{Approach B} \\
 \midrule
 Deterministic across nodes & Strong & Weak--Medium \\
-Responsiveness & Lower & Higher \\
+Ordering stability & Strong & Lower \\
 Formal proof friendliness & High & Low \\
 Topology bias risk & Low & Higher \\
-Implementation complexity & Lower & Higher \\
+Consensus-steering risk & Lower & Higher \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{remark}[Version policy for closure computation]\label{rem:closure_approaches}
-Approach~A is the reference instantiation for PHASMDAG-$v_0$.
+Approach~A is the reference instantiation for PHASMDAG-Core-$v_1$.
 Approach~B remains explicitly experimental.
-This is a versioning decision, not merely a modelling preference: the base
-protocol optimises for determinism and proof-friendliness first.
+This is a versioning decision, not merely a modelling preference:
+the base protocol optimises for semantic separation, determinism, and bounded
+manipulation payoff before attempting closure-aware ordering.
 \end{remark}
 
 \subsection{Parameter Space}
 
-The protocol introduces the following parameters that must be analysed formally:
+The core protocol introduces the following parameters that must be analysed formally:
 
 \begin{table}[tbp]
 \centering
@@ -1323,22 +1296,31 @@ The protocol introduces the following parameters that must be analysed formally:
 \toprule
 \textbf{Parameter} & \textbf{Type} & \textbf{Constraints} \\
 \midrule
-$\lambda$ & Protocol-level & $v_0$: static consensus constant; dynamic
-adjustment excluded from initial model (\Cref{sec:open}) \\
+$K$ & GhostDAG order parameter & Fixed consensus constant inherited from the
+GhostDAG-style ordering core \\
 $H$ & Closure window & Support-horizon size for $\mathcal{W}_H(B)$;
 must be large enough to capture relevant descendant evidence \\
 $\eta_{\mathrm{dep}}, \eta_{\mathrm{coh}}, \eta_{\mathrm{fr}}$ & Aggregation &
-Non-negative and sum to $1$ in \Cref{eq:closure_level_v0} \\
-$a,b,c,d$ & Closure-risk weights & Non-negative; determine auditably how
-$\Rcls(S)$ trades block-local vs.\ set-level fragility \\
-$\alpha, \beta, \gamma, \tau$ & Finality function & Must ensure monotonicity
-of $\Ffin$ in both $\Ostr$ and $\Clvl$ \\
-$c_{\mathrm{threshold}}$ & Closure & Minimum $\Clvl$ for strong confirmation \\
+Non-negative and sum to $1$ in \Cref{eq:closure_level_v1}; diagnostic only \\
+$\tau_{\mathrm{ord}}$ & Order threshold & Minimum structural support for Grade~1 \\
+$\theta_{\mathrm{dep}}, \theta_{\mathrm{coh}}$ & Certificate thresholds &
+Minimum dependency-completeness and coherent-support evidence for
+$\mathrm{ValidCert}_{\mathcal{C}}(B)$ \\
+$\theta_{\mathrm{work}}$ & Work threshold & Minimum support-window work needed
+before a certificate may be issued \\
+$\tau_{\mathrm{settle}}$ & Settlement threshold & Minimum deep-settlement
+condition for Grade~3 \\
+$\theta^{\mathrm{deep}}_{\mathrm{fr}}$ & Optional frontier stability & May be
+used as a conservative Grade~3 strengthening, not as a Grade~2 gate \\
+$\varepsilon_{\mathrm{coh}}$ & Coherence tolerance & Maximum admissible
+cross-node disagreement when Grade~2 becomes globally meaningful \\
 $\rho_{\mathrm{tent}}$ & Tentative ordering & Maximum permitted rank churn for
 Grade~1 (\Cref{inv:tentative}) \\
 $\varepsilon_{\mathrm{settle}}$ & Settlement target & Maximum rollback tail for
 Grade~3 (\Cref{inv:settlement}) \\
-$\Clvl$ definition & Protocol design & $v_0$: Approach~A only; Approach~B is
+$\lambda$ and $\Rcls$ & Experimental extension & Not consensus-critical in
+$v_1$; retained only for diagnostics, simulation, or future variants \\
+$\Clvl$ definition & Protocol design & $v_1$: Approach~A only; Approach~B is
 experimental (\Cref{rem:closure_approaches}) \\
 \bottomrule
 \end{tabularx}
@@ -1358,11 +1340,11 @@ The following properties are targets for formal verification:
     \Cref{inv:settlement}.
     \item \textbf{Liveness}: every honestly mined block eventually reaches
     tentative ordering (Grade~1) if the network eventually stabilises.
-    \item \textbf{Closure coherence}: establish or refute
+    \item \textbf{Certificate coherence}: establish or refute
     \Cref{conj:coherence}, which is the central theorem target of the protocol.
-    \item \textbf{Dominance-region validation}: determine whether the heuristic
-    region in \Cref{prop:graceful} survives a full CBM proof or only a
-    simulation-level approximation.
+    \item \textbf{Payoff-bounding validation}: determine whether the bounded
+    manipulation-payoff framing in \Cref{prop:graceful} survives a fuller CBM
+    analysis or only a simulation-level approximation.
 \end{enumerate}
 
 % =====================================================================
@@ -1384,7 +1366,8 @@ CBM conditions:
     global bandwidth cap and measuring propagation delays as a function of
     utilisation.
     \item \textbf{Closure tracking}: augment each simulated node with the
-    $v_0$ closure computation (Approach~A) and track $\Clvl(B)$ over time.
+    $v_1$ raw-closure and certificate computation (Approach~A), tracking both
+    $\Clvl(B)$ and the issuance event $\Certcls(B)=1$ over time.
 \end{enumerate}
 
 \subsection{Evaluation Metrics}
@@ -1404,8 +1387,8 @@ framework of~\cite{zhang2019common}:
 \midrule
 Chain growth rate $g$
     & Blocks per second entering the canonical order \\
-Heuristic effective security threshold $\gamma_{\mathrm{eff}}$
-    & Candidate minimum honest fraction for security under LP \\
+Certificate issuance rate $p_{\mathrm{cert}}(T)$
+    & Fraction of tentatively ordered blocks that become certified within horizon $T$ \\
 Realised TPS
     & Actual transaction throughput under imperfect networks \\
 Tentative confirmation latency
@@ -1414,9 +1397,8 @@ Strong confirmation latency
     & Time from block creation to Grade~2 \\
 Deep settlement latency
     & Time from block creation to Grade~3 \\
-Closure convergence time
-    & Time for $\Clvl(B)$ to reach $c_{\mathrm{threshold}}$ across honest
-    nodes \\
+Certificate coherence time
+    & Time until honest nodes agree sufficiently for $\Certcls(B)=1$ to become globally meaningful \\
 P95/P99 finality tail
     & Tail behaviour of confirmation latency under stress \\
 \bottomrule
@@ -1431,31 +1413,52 @@ P95/P99 finality tail
     congestion, no mitigations.
     \item \textbf{GhostDAG + engineering mitigations}: GhostDAG with
     header-first, dependency-aware relay, and telemetry.
-    \item \textbf{PHASMDAG under CBM}: PHASMDAG with $\Clvl$ computation
-    (Approach~A) and bi-objective functional, under the same CBM conditions.
+    \item \textbf{PHASMDAG-Core under CBM}: PHASMDAG-Core with $\Clvl$ computation
+    (Approach~A) and certificate issuance, under the same CBM conditions.
 \end{enumerate}
 
 The comparison between configurations~(3) and~(4) directly tests
 \Cref{prop:engineering_ceiling}: does the protocol-level closure awareness
-of PHASMDAG provide security benefits beyond what engineering mitigations
+of PHASMDAG-Core provide security benefits beyond what engineering mitigations
 can achieve?
+
+\subsection{Engineering Priorities for v1}
+
+The conservative presentation of PHASMDAG-Core is intended to make the
+protocol look buildable rather than merely suggestive.
+The minimal engineering package for any $v_1$ prototype should include:
+\begin{enumerate}[nosep]
+    \item \textbf{Header-first propagation}, so that ordering can continue even
+    when full dependency availability lags.
+    \item \textbf{Dependency-aware relay}, so that blocks resolving the largest
+    missing-predecessor pockets are propagated first.
+    \item \textbf{Orphan and missing-predecessor recovery}, so that unresolved
+    support windows can be repaired promptly once absent predecessors are
+    discovered.
+    \item \textbf{Compact closure-evidence caching}, so that support-window work
+    and coherent-support counters are maintained incrementally rather than
+    recomputed from scratch.
+    \item \textbf{A fixed support horizon $H$}, so that both analysis and
+    implementation remain bounded.
+\end{enumerate}
 
 \subsection{Complexity and Incremental Computation}\label{sec:complexity}
 
 The introduction of $\Sigma_{\mathrm{cls}}$ and $\Sigma_{\mathrm{fin}}$
-state machines, frontier stability tracking, and closure attestation caches
+state machines, fixed support-window tracking, and closure-evidence caches
 raises legitimate concerns about computational overhead.  A protocol that is
 theoretically sound but practically unrunnable serves no one.
 Incremental computation is therefore stipulated as a strict prerequisite for
-$v_0$, not an afterthought.
+$v_1$, not an afterthought.
 
-The critical metrics that must be evaluated and bounded before a PHASMDAG
+The critical metrics that must be evaluated and bounded before a PHASMDAG-Core
 prototype is considered viable are:
 
 \begin{enumerate}[nosep]
-    \item \textbf{Amortised per-block update cost for $\Clvl(B)$}:
+    \item \textbf{Amortised per-block update cost for raw closure and certificate state}:
     Computing $\Clvl(B)$ for a new block requires updating the three
-    sub-metrics over the affected support windows.
+    sub-metrics over the affected support windows; issuing $\Certcls(B)$ also
+    requires updating certificate-side thresholds over the same local region.
     Under Approach~A (\Cref{eq:cdep,eq:ccoh,eq:cfr}), this can be formulated
     incrementally: when a new block $B_{\mathrm{new}}$ arrives, only its direct
     work contribution and its canonical-child / frontier relations need to be
@@ -1465,24 +1468,27 @@ prototype is considered viable are:
     \item \textbf{Memory footprint of closure-state indices and attestation caches}:
     Each block must store: (a) the cumulative work mass needed for
     $\Cdep(B)$, (b) support-window routing metadata needed for $\Ccoh(B)$, and
-    (c) frontier concentration metadata needed for $\Cfr(B)$.
+    (c) frontier concentration metadata needed for $\Cfr(B)$, together with a
+    compact certificate-evidence cache for $\mathrm{Work}_H(B)$.
     These are all bounded by the finite support window $H$ and can be encoded as
     compact additive counters plus small frontier indices rather than as a full
     descendant list.
 
     \item \textbf{Incremental recomputation depth}:
     When $\Clvl(B)$ changes (because a new descendant arrived or a predecessor
-    was resolved), closure scores must be updated along the \emph{affected
-    descendant frontier}---not the entire DAG.  The expected frontier size is
-    bounded by the merge depth and the number of recent blocks, both of which
-    are $O(K)$ in the current GhostDAG implementation.
+    was resolved), raw closure scores and certificate-side margins must be
+    updated along the \emph{affected descendant frontier}---not the entire DAG.
+    The expected frontier size is bounded by the merge depth and the number of
+    recent blocks, both of which are $O(K)$ in the current GhostDAG
+    implementation.
 
     \item \textbf{Lazy recomputation for deep historical blocks}:
     Blocks deeper than the finality depth can be considered settled; their
     $\Clvl$ values are no longer consensus-relevant and need not be
-    recomputed.  Pruning strategies can treat $\Clvl$ computation similarly to
-    how existing GhostDAG implementations prune anticone data beyond the
-    pruning depth.
+    recomputed; certificates that have already become monotonic need not be
+    re-evaluated except for audit.  Pruning strategies can treat closure and
+    certificate computation similarly to how existing GhostDAG implementations
+    prune anticone data beyond the pruning depth.
 \end{enumerate}
 
 \begin{remark}[Computational feasibility of Approach A]\label{rem:approach_a_cost}
@@ -1490,10 +1496,11 @@ Approach~A is specifically designed for incremental computation:
 the work-weighted numerators and denominators in
 \Cref{eq:cdep,eq:ccoh,eq:cfr} are additive or frontier-local quantities that
 can be updated without re-walking the entire descendant cone.
-This contrasts with Approach~B (\Cref{eq:closure_prob}), which would require
-Bayesian updates over the entire ancestor set and therefore lacks a similarly
-clean incremental path.
-This is an additional reason to prefer Approach~A for $v_0$.
+This contrasts with the experimental ordering-aware extension
+\Cref{eq:closure_ordering_future}, which would make the same quantities part of
+the order-selection problem and therefore lacks a similarly clean incremental
+path.
+This is an additional reason to prefer Approach~A for $v_1$.
 \end{remark}
 
 \subsection{Phased Verification Roadmap}
@@ -1509,17 +1516,18 @@ This is an additional reason to prefer Approach~A for $v_0$.
 \textbf{Phase} & \textbf{Timeline} & \textbf{Deliverables} \\
 \midrule
 1 & 0--6\,mo
-  & Formal model: define $\Ostr$, $\Cdep$, $\Ccoh$, $\Cfr$, $\Clvl$, and $\Ffin$;
+  & Formal model: define $\Ostr$, $\Cdep$, $\Ccoh$, $\Cfr$, $\Clvl$, $\Certcls$, and $\Ffin$;
     specify state machine and admissible transitions \\
 2 & 6--12\,mo
   & Simulation: implement CBM/LP scenarios in SimBlock;
-    compare GhostDAG vs PHASMDAG under identical conditions \\
+    compare GhostDAG vs PHASMDAG-Core under identical conditions \\
 3 & 12--18\,mo
-  & Security analysis: chain growth under joint order/closure semantics;
+  & Security analysis: tentative-order growth and certificate-issuance dynamics;
     quality under heterogeneous visibility;
-    adversarial threshold as function of closure degradation \\
+    adversarial threshold as function of certification degradation \\
 4 & 18--24\,mo
-  & Prototype: implement order layer + closure tracking;
+  & Prototype: implement order layer + header-first propagation +
+    dependency-aware relay + certificate issuance;
     expose three confirmation grades;
     evaluate on a controlled experimental network \\
 \bottomrule
@@ -1530,73 +1538,91 @@ Note that Phases 1--2 can proceed in parallel with the engineering mitigations
 (header-first, telemetry, dependency-aware relay) and other implementation-level
 studies of GhostDAG.  The CBM-GhostDAG security proof may be read as a decision
 gate: if it indicates that engineering mitigations suffice at the target BPS,
-PHASMDAG may remain chiefly a research direction; if not, it may warrant
+PHASMDAG-Core may remain chiefly a research direction; if not, it may warrant
 treatment as a more substantial redesign path.
 
 % =====================================================================
 \section{Discussion}\label{sec:discussion}
 
-\subsection{Comparison with Delay-Weighted Colouring}
+\subsection{Why Not Closure-Weighted Ordering in v1?}
 
-An alternative approach to handling LP effects is delay-weighted
-colouring---promoting GhostDAG's binary blue/red colouring to a continuous
-weight based on observed propagation delay.
-For a consensus-visible $v_0$ design, PHASMDAG's $\Rcls$ is the more
-analytically coherent
-choice:
+Closure-weighted ordering is intellectually attractive.
+It appears to internalise LP/BJ risk directly into the ordering rule itself.
+However, it also turns closure evidence into a strategic resource.
+If missing closure evidence can directly reduce canonical-order attractiveness,
+then suppression of closure becomes a consensus-steering lever.
+PHASMDAG-Core therefore adopts a deliberately conservative asymmetry:
+positive closure evidence unlocks stronger finality, whereas missing closure
+evidence does not directly punish canonical order.
 
 \begin{table}[tbp]
 \centering
-\caption{Delay-weighted colouring vs.\ PHASMDAG $\Rcls$}
+\caption{Why PHASMDAG-Core-$v_1$ avoids closure-weighted ordering}
 \label{tab:dwc_vs_closure_risk}
 \small
 \renewcommand{\arraystretch}{1.1}
 \begin{tabularx}{0.98\textwidth}{@{}L{3.2cm}YY@{}}
 \toprule
-\textbf{Dimension} & \textbf{Delay-Weighted} & \textbf{PHASMDAG $\Rcls$} \\
+\textbf{Dimension} & \textbf{Closure-weighted ordering} & \textbf{PHASMDAG-Core-$v_1$} \\
 \midrule
-Penalisation target
-    & Observed delay
-    & Dependency fragility \\
-Topology bias risk
-    & High
-    & Low \\
-Conceptual cleanliness
-    & Temporal signal $\to$ consensus weight
-    & Structural robustness $\to$ consensus function \\
-Node consistency
-    & Different nodes see different delays
-    & Structural properties converge \\
+Role of closure
+    & direct input to ordering
+    & certificate-gated finality layer \\
+Effect of missing evidence
+    & may penalise canonical order
+    & delays Grade~2 only \\
+Manipulation payoff
+    & may steer consensus order
+    & primarily latency griefing \\
+Proof friendliness
+    & lower
+    & higher \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-The key insight is that $\Rcls$ penalises \emph{structural fragility}
-(dependency incompleteness, frontier instability) rather than \emph{temporal
-observations} (how long a block took to arrive).
-Since structural properties of the DAG eventually converge across honest nodes,
-$\Rcls$ is less vulnerable to the topology bias identified
-in~\cite{wu2024security,zhang2019common}.
+The choice is therefore not that closure-weighted ordering is devoid of merit.
+The point is rather that it requires a separate incentive-compatibility
+argument, because it makes missing closure evidence a consensus-critical
+variable.
+PHASMDAG-Core-$v_1$ prefers semantic separation to this more aggressive design.
+
+\subsection{Relation to NC-Max}
+
+The philosophical kinship between PHASMDAG-Core and NC-Max~\cite{zhang2022ncmax}
+is not one of mechanism but of discipline.
+NC-Max introduces a chain-style two-step confirmation process so that
+confirmation does not outrun propagation and availability.
+PHASMDAG-Core imports the same discipline into the DAG setting:
+a robust high-throughput DAG should parallelise ordering, not finality.
+Strong finality is serialized through dependency closure.
+
+In that sense, PHASMDAG-Core should not be read as an attempt to make
+GhostDAG's ordering rule ever more reactive.
+It should be read as an attempt to prevent structural order from being
+mistaken for strong finality once dependency availability ceases to be
+well approximated by propagation completion.
 
 \subsection{Failure Modes and Design Risks}
 
 The proposal is best read alongside an explicit account of its likely failure
 modes.  The most important of these are:
 \begin{itemize}[nosep]
-    \item \textbf{Closure metric too conservative}: $\Cdep$, $\Ccoh$, or
-    $\Cfr$ may converge too slowly, causing avoidable TPS and finality
-    regressions.
-    \item \textbf{Closure metric too weak}: an under-specified sub-metric may
-    merely rename the LP attack surface instead of eliminating it.
-    \item \textbf{$\lambda$ badly chosen}: too small and the protocol collapses
-    back toward GhostDAG-style optimism; too large and it becomes quasi-serial
-    and over-conservative.
-    \item \textbf{Set-level fragility under-modelled}: if $\Frag(S)$ is too
-    weak, individually acceptable blocks may still form a collectively brittle
-    support structure.
-    \item \textbf{Closure coherence slower than assumed}: if the sub-metrics do
-    not converge quickly enough across honest nodes, Grade~2 cannot be treated
-    as a safe consensus object.
+    \item \textbf{Certificate thresholds too conservative}: $\theta_{\mathrm{dep}}$,
+    $\theta_{\mathrm{coh}}$, or $\theta_{\mathrm{work}}$ may delay Grade~2
+    unduly, degrading usability.
+    \item \textbf{Certificate thresholds too weak}: if the closure certificate is
+    too permissive, strong confirmation may again outrun dependency maturity.
+    \item \textbf{Certificate coherence slower than assumed}: if honest nodes do
+    not converge quickly enough on certificate issuance, Grade~2 cannot be
+    treated as a safe consensus object.
+    \item \textbf{Frontier stability overused}: if $\Cfr(B)$ is allowed to creep
+    back into Grade~2 semantics, local frontier steering may regain undue
+    influence.
+    \item \textbf{Experimental extensions misapplied}: if $\Rcls$ or $\lambda$
+    are reintroduced into canonical ordering without a separate proof and
+    incentive analysis, the protocol may recreate the very attack surface that
+    $v_1$ was designed to avoid.
     \item \textbf{Semantic interface complexity}: the three-grade finality
     model may be theoretically well motivated yet difficult to expose through
     higher-layer interfaces without misinterpretation.
@@ -1604,54 +1630,33 @@ modes.  The most important of these are:
 
 \subsection{Open Problems}\label{sec:open}
 
-\paragraph{$\Clvl(B)$ semantics.}
-The decomposition of $\Clvl(B)$ is now explicit, but the central open problem
-is no longer ``what are the parts?'' but ``do the parts converge enough across
-honest nodes?''
-Approach~A (\Cref{rem:closure_approaches}) gives deterministic rules for
-$\Cdep$, $\Ccoh$, and $\Cfr$, yet the theorem target remains
-\Cref{conj:coherence}: proving that these sub-metrics stabilise quickly enough
-to support consistent Grade~2 confirmation.
+\paragraph{Certificate coherence.}
+The central theorem target is no longer merely raw closure convergence.
+It is certificate coherence:
+whether honest nodes, given the same eventual structural evidence, converge
+reliably upon the same Grade~2 decisions.
 That is the hardest unresolved problem in the paper.
 
-\paragraph{$\lambda$ consensus consistency.}
-For $v_0$, $\lambda$ is a \textbf{static protocol constant}, fixed at genesis
-or updated only via hard fork.  This is the simplest design that guarantees
-consensus consistency: all nodes trivially agree on $\lambda$.
+\paragraph{Experimental closure-weighted ordering.}
+The earlier line of thought embodied by \Cref{eq:closure_ordering_future}
+remains intellectually interesting.
+It may prove possible to reintroduce $\Rcls$ into order selection without
+creating unacceptable strategic leverage.
+But that would be a separate protocol variant, not a modest modification of
+PHASMDAG-Core-$v_1$.
 
-However, the optimal $\lambda$ varies with network conditions: small $\lambda$
-is optimal under light load, large $\lambda$ under congestion.  A dynamic
-$\lambda$ that adapts to observed network stress---analogous to a
-control-theoretic PID controller---is a conceptually interesting but
-consensus-sensitive extension.
-The risk is total consensus failure if nodes have slightly misaligned
-observation windows or if the congestion signal itself is manipulated by an
-attacker.
-
-Dynamic $\lambda$ is therefore framed as a \emph{control-theoretic extension
-candidate}, excluded from the initial formal model due to:
-\begin{enumerate}[nosep]
-    \item Consensus-consistency risk: nodes observing different network
-    conditions would compute different $\lambda$, leading to divergent chain
-    tips.
-    \item Signal manipulation vectors: an attacker could manipulate the
-    congestion signal (e.g., via bandwidth throttling) to trick honest nodes
-    into an unfavourable $\lambda$.
-\end{enumerate}
-Nodes \emph{could} compute a local, non-consensus advisory metric
-$\lambda_{\mathrm{estimate}}$ strictly for simulation, operator dashboards,
-and telemetry.  This metric must not bear upon block validity or consensus
-state; it is purely informational.
-A potential middle ground for future work is epoch-level consensus updates,
-similar to difficulty adjustment in Bitcoin, but this requires careful
-analysis of the update rule's attack surface.
+\paragraph{$\lambda$-bearing extensions.}
+In PHASMDAG-Core-$v_1$, $\lambda$ is not consensus-critical.
+Any future protocol that reintroduces $\lambda$ into the core rule should use
+only fixed consensus constants or hard-fork / epoch-finalised updates, and
+should prove that no divergence is introduced by parameter misalignment.
 
 \paragraph{Fork distance from GhostDAG.}
-PHASMDAG should perhaps not be understood as a minor variant of GhostDAG, but
-rather as a more substantial protocol divergence.
+PHASMDAG-Core should perhaps not be understood as a minor variant of GhostDAG,
+but rather as a more substantial protocol divergence.
 If ever pursued in earnest, it would probably require a distinct protocol
-identity (for example, \emph{ClosureDAG}) rather than a simple suffix such as
-GhostDAG+.
+identity (hence the auxiliary designation \emph{RobustDAG}) rather than a
+simple suffix such as GhostDAG+.
 This bears directly upon migration, client adaptation, and ecosystem
 compatibility.
 
@@ -1674,18 +1679,20 @@ The relevant boundary is:
     \item \textbf{Implementation-level mitigations cannot eliminate} the hidden gap
     between header progress and strong finality while closure fragility remains
     non-consensus-visible.
-    \item \textbf{Implementation-level mitigations cannot natively penalise} support
+    \item \textbf{Implementation-level mitigations cannot natively certify} support
     structures that are individually legal but collectively closure-fragile,
-    because that requires a protocol term like $\Rcls(S)$.
+    because that requires a protocol object such as $\Certcls(B)$.
     \item \textbf{Implementation-level mitigations cannot provide} a protocol-native
     semantics for ``mature enough to trust'' without an object like
-    $\Clvl(B)$ entering the consensus mathematics.
+    $\Certcls(B)$, grounded in raw closure observations, entering the
+    consensus mathematics.
 \end{itemize}
 
-PHASMDAG still depends on such mitigations as infrastructure:
+PHASMDAG-Core still depends on such mitigations as infrastructure:
 \begin{enumerate}[nosep]
     \item \textbf{Telemetry} provides the observational basis for $\Clvl(B)$
-    computation (dependency completion latency, orphan age distributions).
+    computation and certificate diagnostics (dependency completion latency and
+    orphan-age distributions).
     \item \textbf{Header-First Propagation} enables the closure layer to
     operate at the header level independently of body arrival, reducing the
     LP attack surface that the closure layer must handle.
@@ -1696,26 +1703,26 @@ PHASMDAG still depends on such mitigations as infrastructure:
 
 The more appropriate framing is therefore: \emph{implementation-level mitigations are
 foundational, but they are not a substitute for protocol redesign;
-PHASMDAG is the protocol-level completion that makes closure awareness explicit
+PHASMDAG-Core is the protocol-level completion that makes closure awareness explicit
 in the consensus mathematics}.
 
 % =====================================================================
 \section{Conclusion}\label{sec:conclusion}
 
-This paper has set out a preliminary formulation of PHASMDAG, a
-bi-objective, closure-aware DAG consensus protocol motivated by the security
+This paper has set out a preliminary formulation of PHASMDAG-Core, an
+order-first, closure-certified DAG consensus protocol motivated by the security
 questions raised by Wu, Wei, Zhang, and Jiang~\cite{wu2024security}.
 
 The central contention has been that the root limitation of GhostDAG-family
 protocols may lie not merely in the attackability of relay paths, but also in
 the manner in which one structural object is made to stand simultaneously for
 ordering, acceptability, and finality.
-The proposed response is to separate structural order, closure maturity, and
-finality into distinct mathematical roles, and to reconnect them through an
-explicit bi-objective consensus functional:
-\[
-\Phifn(S) = \Uord(S) - \lambda\,\Rcls(S)
-\]
+The proposed response is to separate structural order, dependency closure, and
+finality into distinct mathematical roles.
+PHASMDAG-Core is therefore not best understood as a faster GhostDAG.
+It is better understood as a more semantically honest high-BPS DAG framework:
+tentative ordering remains fast and parallel, whereas strong finality is made
+conditional on closure certification.
 
 Taken together, the present formulation supports the following tentative
 claims:
@@ -1723,31 +1730,30 @@ claims:
     \item Block Jam and Late-Predecessor effects can be brought within the
     protocol's mathematical core rather than treated solely as external
     implementation concerns.
-    \item A concrete and auditable $v_0$ instantiation of closure can be given
-    through $\Cdep$, $\Ccoh$, $\Cfr$, and $\Rcls(S)$.
-    \item A preliminary dominance-region heuristic under LP attack can be
-    stated without thereby claiming a completed universal superiority result
-    (\Cref{prop:graceful}).
+    \item A concrete and auditable $v_1$ instantiation of closure can be given
+    through bounded, work-weighted support-window evidence and the monotonic
+    certificate $\Certcls(B)$.
+    \item The main safety benefit is semantic rather than speed-theoretic:
+    strong confirmation is withheld until dependency closure is certified.
+    \item The protocol can be framed so that closure manipulation is not made
+    to disappear, but its payoff is deliberately bounded by refusing to let it
+    become a cheap canonical-order steering lever.
     \item Semantically explicit confirmation grades can be coupled to explicit
     invariants rather than collapsed into a single opaque scalar.
-    \item Under the modelling choices adopted here, degradation under
-    congestion may be rendered more gradual than an abrupt security collapse.
 \end{enumerate}
 
-The principal unresolved difficulty remains closure coherence: whether the
-deterministic closure sub-metrics converge sufficiently across honest nodes to
-make Grade~2 globally meaningful.
-Approach~A has been standardised as the reference $v_0$ design, while
-Approach~B remains an experimental extension.
-The paper has also set out a phased programme of formal modelling and
-verification.
+The principal unresolved theorem target is certificate coherence:
+whether honest nodes, once presented with sufficiently mature structural
+evidence, converge reliably upon the same Grade~2 decisions.
+Approach~A has been standardised as the reference $v_1$ design, while
+closure-weighted ordering remains future work.
+The paper has therefore offered not a completed proof, but a conservative
+protocol proposal together with a phased programme of formal modelling,
+simulation, and implementation.
 
-PHASMDAG should therefore be read not as an incremental amendment to
-GhostDAG, but as a more substantial re-specification of what a DAG consensus
-protocol is taken to optimise.
-Whether it ultimately warrants treatment as an independent protocol family
-must depend upon the outcome of the formal and experimental programme set out
-above.
+Whether PHASMDAG-Core ultimately warrants treatment as an independent protocol
+family---or, in the auxiliary language used here, as a genuine RobustDAG
+design---must depend upon the outcome of that programme.
 
 % =====================================================================
 \section*{Acknowledgements}
@@ -1826,6 +1832,12 @@ Y.~Aoki, K.~Shigeta, and R.~Banno,
 \emph{Proceedings of the IEEE International Conference on Blockchain
 (Blockchain)}, pp.~131--139, 2019.
 
+\bibitem{zhang2022ncmax}
+L.~Zhang, F.~Zhang, and J.~Sun,
+``NC-Max: Breaking the Security-Performance Tradeoff in Nakamoto Consensus,''
+\emph{Proceedings of the Network and Distributed System Security Symposium
+(NDSS)}, 2022.
+
 \end{thebibliography}
 
 % =====================================================================
@@ -1855,25 +1867,28 @@ However, this approach has two problems:
     same $K$---but $D_{\mathrm{eff}}$ varies across nodes under LP attack.
 \end{enumerate}
 
-PHASMDAG resolves this differently.  The closure layer provides a
-\emph{per-block} modulation of effective delay exposure, without changing the
-global $K$:
+PHASMDAG-Core resolves this differently.  The closure layer does \emph{not} alter
+the consensus value of $K$, nor does it reweight an otherwise valid ordered
+block inside the order core.
+Instead, effective delay exposure appears in the transition from tentative
+order to strong confirmation:
 \begin{itemize}[nosep]
     \item The $K$ parameter remains a consensus constant derived from the
     optimistic $D$ (as in current GhostDAG).
-    \item The closure level $\Clvl(B)$ modulates the \emph{effective weight} of
-    each block within the $K$-cluster, rather than changing $K$ itself.
-    \item Blocks with $\Clvl(B) < 1$ contribute less to blue-work accumulation,
-    which is mathematically equivalent to a locally higher effective $K$ for those
-    blocks, without requiring consensus-level parameter changes.
+    \item Tentative order is still computed from the GhostDAG order core under
+    that fixed $K$.
+    \item The closure layer determines whether an already ordered block may
+    advance from Grade~1 to Grade~2 by obtaining $\Certcls(B)=1$.
+    \item Under LP attack, the observable degradation therefore appears as a
+    lower certificate-issuance rate $p_{\mathrm{cert}}(T)$ rather than as a
+    consensus-visible increase in $K$.
 \end{itemize}
 
 This design choice is deliberate: it keeps the consensus rule simple and
-stable ($K$ is fixed) while achieving the security benefit of adaptive delay
-awareness through the closure layer.  The tradeoff is that PHASMDAG's blue
-work grows more slowly under LP attack than GhostDAG's would under UDBM, but
-the growth is more \emph{faithful}---it reflects actual dependency maturity rather
-than optimistic assumptions.
+stable ($K$ is fixed) while allowing adaptive delay awareness to enter through
+certificate-gated finality.  The tradeoff is that strong-finality growth may
+degrade under LP attack even while tentative order continues to grow according
+to the underlying GhostDAG order core.
 
 \begin{table}[H]
 \centering
@@ -1887,7 +1902,7 @@ than optimistic assumptions.
 \midrule
 GhostDAG (UDBM) & $K = f(2Df,\delta)$ & $D$ assumed uniform \\
 GhostDAG + adaptive $K$ & $K = f(2D_{\mathrm{eff}}f,\delta)$ & Consensus risk: nodes disagree on $D_{\mathrm{eff}}$ \\
-PHASMDAG & $K = f(2Df,\delta)$ (unchanged) & Per-block $\Clvl(B)$ modulates effective weight \\
+PHASMDAG-Core & $K = f(2Df,\delta)$ (unchanged) & Order unchanged; delay appears in certificate issuance $\Certcls(B)$ \\
 \bottomrule
 \end{tabularx}
 \end{table}
