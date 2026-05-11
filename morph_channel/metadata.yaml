@@ -1,0 +1,35 @@
+schema_version: 1
+id: morph-channel
+type: research-paper
+slug: morph_channel
+title: "Morph Channel: A Cell-Native Protocol Construction for Sponsored State Evidence and Local Channel Factories on CKB"
+authors:
+  - name: Arthur Zhang
+date: "2026-05"
+language: en
+status: research draft
+topics:
+  - CKB
+  - payment channels
+  - state channels
+  - channel factories
+  - sponsored publication
+  - partition conservation
+  - xUDT
+artifacts:
+  source_tex: paper.tex
+  compiled_pdf: paper.pdf
+build:
+  working_directory: morph_channel
+  command: xelatex -interaction=nonstopmode -halt-on-error paper.tex
+related_codebases:
+  - path: /Users/arthur/RustroverProjects/ckb
+    relationship: CKB primitive and script-semantics context
+summary: >
+  Morph Channel is a CKB Cell-native channel and local-factory construction.
+  It separates stable funding identity, moving signed state evidence, sponsor
+  fee responsibility, settlement descriptors, and factory-local proof objects.
+  The paper argues for bilateral plaintext witnesses, proof-based factory
+  exits, confirmation-based challenge windows, and partition conservation
+  across channel reserve, business CKB, xUDT balances, and sponsor capacity.
+

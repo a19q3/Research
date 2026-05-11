@@ -1,0 +1,30 @@
+schema_version: 1
+id: phasmdag-core
+type: research-paper
+slug: phasm_dag
+title: "PHASMDAG-Core: Closure-Certified Finality for High-Throughput DAG Consensus"
+subtitle: "RobustDAG and the Separation of Ordering from Strong Finality in Proof-of-Work BlockDAGs"
+authors:
+  - name: Arthur Zhang
+date: "2026-04"
+language: en
+status: research draft
+topics:
+  - DAG consensus
+  - Proof of Work
+  - finality
+  - GhostDAG
+  - closure certificates
+artifacts:
+  source_tex: paper.tex
+  compiled_pdf: paper.pdf
+build:
+  working_directory: phasm_dag
+  command: pdflatex -interaction=nonstopmode -halt-on-error paper.tex
+summary: >
+  PHASMDAG-Core proposes a conservative high-throughput DAG protocol design
+  that separates canonical ordering from dependency closure and strong finality.
+  It preserves a GhostDAG-style ordering core while adding a closure-aware
+  finality layer based on deterministic, work-weighted closure-certificate
+  conditions.
+
