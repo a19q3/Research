@@ -213,6 +213,9 @@ This paper makes seven contributions.
   \item \textbf{Narrow descriptors.} Settlement descriptors authorise output derivation and should not become an application runtime.
   \item \textbf{Measurability before defaulting.} Proof mode is not assumed cheaper until transaction size and CKB-VM cycles are measured.
   \item \textbf{Conservative factory coordination.} Locality is a verification property, not a substitute for multi-party authorisation.
+  \item \textbf{Authentic state authority.} Vault finalisation is authorised by an authentic current State Cell under the expected scripts, not by bytes that merely decode as a state header.
+  \item \textbf{Canonical challenge maturity.} V1 finalisation maturity is a canonical relative-block CKB \texttt{since} condition, not a raw integer threshold.
+  \item \textbf{Value conservation for local proofs.} Non-interference localises a change; value-bearing right increases still require full consent or a real asset-delta witness.
 \end{enumerate}
 
 \section{System Model and Threat Assumptions}
@@ -271,7 +274,7 @@ The bundle carries channel identity and channel-owned value. It is stable during
 \end{definition}
 
 \begin{definition}[Vault Authorisation]
-A vault Cell is admissible only if its lock or type script rejects every spend that is not authorised by the currently valid state evidence and the committed settlement descriptor.
+A vault Cell is admissible only if its lock or type script rejects every spend that is not authorised by the authentic currently valid State Cell and the committed settlement descriptor. A Cell whose data merely decodes as a state header is not state authority unless its script identity also matches the channel construction.
 \end{definition}
 
 \begin{definition}[Current State Pointer]
@@ -328,7 +331,7 @@ The version fields are part of the signed domain. The purpose is not only to pre
 
 \subsection{Sponsor Partition}
 
-Sponsor funds are not part of the channel-owned value partition. They are ordinary wallet Cells, watchtower-owned Cells, or pre-authorised fee budgets whose authorisation is limited by channel identity, state-number range, maximum fee, expiry, allowed sponsor source, and change destination.
+Sponsor funds are not part of the channel-owned value partition. They are ordinary wallet Cells, watchtower-owned Cells, or pre-authorised fee budgets. The script-enforced budget boundary should include channel identity, state-number range, maximum fee, expected state type, and clean change destination. Expiry windows, allowed sponsor sources, publishing cadence, and webhook policy may also be enforced by an operator or watchtower layer unless the deployment gives the script verifiable evidence for those fields.
 
 \begin{figure}[htbp]
 \centering
@@ -346,7 +349,7 @@ Sponsor funds are not part of the channel-owned value partition. They are ordina
 \node[box, fill=MorphAmber!7, draw=MorphAmber!70!black] at (3.75,-0.9) (commits) {Commitments\\assets + descriptor};
 \node[group, fit=(scell)(commits), label={[font=\bfseries]above:Moving State Track}] (stategroup) {};
 
-\node[box, fill=MorphGreen!9, draw=MorphGreen!75!black] at (7.5,0.9) (budget) {Sponsor Budget\\fee bound, expiry};
+\node[box, fill=MorphGreen!9, draw=MorphGreen!75!black] at (7.5,0.9) (budget) {Sponsor Budget\\fee + state bounds};
 \node[box, fill=MorphGreen!5, draw=MorphGreen!65!black] at (7.5,-0.9) (change) {Sponsor Change\\policy return};
 \node[group, fit=(budget)(change), label={[font=\bfseries]above:Publication Layer}] (sponsorgroup) {};
 
@@ -435,14 +438,16 @@ verify_vault_spend(tx):
   op = classify_channel_operation(tx)
   require op in {FINALIZE, COOPERATIVE_CLOSE, SPLICE, MATERIALIZE}
 
-  state = exactly_one_input_state_cell(tx, channel_id)
+  state = exactly_one_authentic_input_state_cell(
+            tx, channel_id, expected_state_type, expected_state_lock)
   header = parse_state_header(state.data)
   require header.funding_anchor_identity matches this_vault.channel
   require signatures_or_phase_authorise(op, header, tx.witness)
 
   if op == FINALIZE:
     require header.phase == settling
-    require state_input_since_satisfies(header.challenge_policy)
+    require state_input_relative_block_since_satisfies(header.challenge_policy)
+    require this_vault matches header.payload_or_vault_commitment
 
   expected_outputs =
     derive_outputs(header.settlement_descriptor_commitment,
@@ -582,7 +587,7 @@ The transaction body is not the protocol authority. It is a reconstructible carr
 
 \subsection{FINALIZE}
 
-\textsf{FINALIZE} consumes the current settling State Cell and the relevant vault Cells after the relative \texttt{since} delay has matured. It creates the settlement outputs authorised by the committed settlement descriptor. Cooperative close is a special path that carries explicit authorisation from the required participants and does not require a challenge delay.
+\textsf{FINALIZE} consumes the current settling State Cell and the relevant vault Cells after the relative \texttt{since} delay has matured. It creates the settlement outputs authorised by the committed settlement descriptor. Retiring the state track without finalising or otherwise leaving verifiable finalisation evidence is invalid, because it would orphan channel value. Cooperative close is a special path that carries explicit authorisation from the required participants and does not require a challenge delay.
 
 \section{Partition Conservation}
 
@@ -820,11 +825,11 @@ The difficult object in a factory is therefore not the Merkle proof alone, but t
 \end{figure}
 
 \begin{proposition}[Conservative Factory Authorisation]
-If a factory action cannot prove non-interference, then a conservative first implementation should require signatures from all factory participants. If non-interference is proven, the signing set may be reduced to the affected participants.
+If a factory action cannot prove non-interference, then a conservative first implementation should require signatures from all factory participants. If non-interference is proven, the signing set may be reduced to the affected participants only when the touched rights also satisfy participant authorisation, local validity, and value conservation.
 \end{proposition}
 
 \begin{proof}
-Without non-interference, untouched leaves may still depend on shared membership, reserve, or exit-right state. A local signature set would not authorise those possible effects. Full-participant signatures authorise global effects; alternatively, a non-interference proof removes those effects from the transaction semantics.
+Without non-interference, untouched leaves may still depend on shared membership, reserve, or exit-right state. A local signature set would not authorise those possible effects. Full-participant signatures authorise global effects. A non-interference proof removes only the effects on untouched rights; it does not by itself authorise minting a balance, increasing a reserve claim, deleting membership, or releasing value from a vault.
 \end{proof}
 
 \section{Challenge-Window Semantics}
@@ -841,7 +846,7 @@ Let $\Delta$ denote the finalisation delay encoded by relative \texttt{since}. A
 \Delta_{\mathrm{margin}}.
 \]
 
-The terms respectively represent detection confirmations, watchtower polling interval, transaction construction and propagation, confirmation of the newer-state transaction, and a margin for fee bumping and reorganisation risk. Implementations may choose block-number, epoch, or timestamp based \texttt{since}, but must test against current CKB hardfork semantics~\cite{ckb-since,ckb-since-timestamp,ckb-since-epoch}.
+The terms respectively represent detection confirmations, watchtower polling interval, transaction construction and propagation, confirmation of the newer-state transaction, and a margin for fee bumping and reorganisation risk. V1 uses a canonical relative block-number \texttt{since}. A future deployment may choose epoch- or timestamp-based maturity only if the mode, metric, reserved bits, and value are canonicalised and tested against current CKB hardfork semantics~\cite{ckb-since,ckb-since-timestamp,ckb-since-epoch}; raw integer comparison is not a valid challenge-window check.
 
 \begin{table}[htbp]
 \centering
@@ -894,7 +899,7 @@ Reorganisation margin & conservative deployment choice & does the delay tolerate
 
 \subsection{CKB \texttt{since} and Mempool Reality}
 
-In CKB, relative \texttt{since} is checked on transaction inputs. For Morph finalisation, the relevant input is the currently live settling State Cell. Therefore a finalisation transaction should set \texttt{since} on the State Cell input and the State type or vault lock should check that the value matches the committed challenge policy.
+In CKB, relative \texttt{since} is checked on transaction inputs. For Morph finalisation, the relevant input is the currently live settling State Cell. Therefore a finalisation transaction should set \texttt{since} on the State Cell input and the State type or vault lock should check that the value is an encoded relative-block condition matching the committed challenge policy. A naked numeric value is not equivalent to a relative delay.
 
 Safety should be defined by confirmation before the deadline, not by mempool presence. A challenger may observe an old state in the tx-pool, but the protocol should not require responding until an old settling State Cell is actually confirmed or reaches the configured detection depth. If the old state confirms, the challenger rebuilds a newer-state transaction against the now-live settling State Cell. If a newer-state transaction remains unconfirmed, the watchtower must be able to rebuild it with different sponsor inputs or a higher fee, because the channel signature does not commit to sponsor coin selection.
 
@@ -966,11 +971,11 @@ The script compares the referenced Cell identity with the identity committed in 
 \end{proof}
 
 \begin{proposition}[Vault Spend Safety]
-If each vault lock accepts only current-state-authorised settlement or materialisation transactions, then channel-owned value cannot be spent through ordinary wallet paths.
+If each vault lock accepts only settlement or materialisation transactions authorised by an authentic current State Cell and descriptor-admissible outputs, then channel-owned value cannot be spent through ordinary wallet paths or fake state-header bytes.
 \end{proposition}
 
 \begin{proof}
-Every spend of channel-owned value must satisfy the vault lock. By assumption, the lock rejects transactions lacking current state evidence and descriptor-admissible outputs. Ordinary wallet signatures alone are insufficient.
+Every spend of channel-owned value must satisfy the vault lock. By assumption, the lock rejects transactions lacking authentic current state evidence and descriptor-admissible outputs. Ordinary wallet signatures alone are insufficient, and a non-authoritative Cell that only imitates the State Header layout does not satisfy the state-evidence predicate.
 \end{proof}
 
 \begin{proposition}[Recoverable Unilateral Settlement]
@@ -1016,6 +1021,7 @@ The construction remains incomplete in several respects:
   \item Different xUDT implementations may impose different constraints.
   \item The paper now specifies script-level semantics, but not byte-level Molecule schemas or complete CKB-VM implementations.
   \item Factory non-interference still requires a formal rights-dependency schema before reduced signing sets are safe.
+  \item Typed reduced exits require complete binding of asset type, amount, child vault, settlement descriptor, and factory-vault change before they can be treated as active V1 acceptance paths.
 \end{enumerate}
 
 \section{Conclusion}
@@ -1043,13 +1049,16 @@ S1 & One live State Cell controls the channel pointer & State Cell type plus CKB
 S2 & Funding anchor identity is canonical & State Header plus \texttt{cell\_deps} check & referenced anchor matches committed genesis identity & descriptor-shaped fake anchor is referenced \\
 S3 & State numbers are strictly monotonic & State Cell type script & supersede $n \rightarrow n+k$ with valid signatures & publish lower or equal state number \\
 V1 & Vault value follows current state evidence & Vault lock and settlement descriptor & finalise after valid \texttt{since} delay & wallet-only spend of vault value \\
+V2 & Vault authority requires an authentic State Cell & State/Vault script identity checks & State Cell under expected scripts controls finalise & ordinary Cell carries decodable State Header bytes \\
 P1 & Channel-owned capacity never pays publication fees & partition conservation & sponsor capacity pays fee and receives change & reserve reduced by transaction fee \\
 P2 & Reserve and business CKB are not confused & reserve and business-CKB ledgers & authorised reserve refund is explicit & reserve becomes hidden business balance or fee \\
 X1 & xUDT value is conserved by canonical type script & asset registry and xUDT type check & same canonical type script and amount & same symbol or metadata with different type script \\
 G1 & Sponsor change is uncontaminated & sponsor policy and partition classifier & sponsor change contains only sponsor capacity & sponsor change carries registered xUDT or vault lock \\
 U1 & Unrelated Cells cannot influence channel validity & script read set and conservation classifier & unrelated wallet input pays no channel role & helper Cell is read by channel scripts without classification \\
 C1 & Challenge safety is confirmation-based & deployment profile and \texttt{since} policy & newer state confirms before deadline & stale state finalises while newer tx is only in mempool \\
+C2 & Challenge maturity is canonical relative block \texttt{since} & State/Vault since parser & encoded relative block delay matures & raw absolute integer is accepted as a delay \\
 F1 & Factory locality preserves untouched rights & proof bundle and rights-dependency graph & touched leaves prove affected rights only & shared reserve or exit right changes without authorisation \\
+F2 & Factory locality is not mint authority & local validity and conservation predicates & value right decreases or vault-delta-bound increases & Merkle-only proof increases ReserveClaim or Balance \\
 \bottomrule
 \end{tabular}
 \caption{Construction audit matrix for Morph Channel.}
