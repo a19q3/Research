@@ -471,13 +471,16 @@ verify_sponsor_budget_spend(tx):
   require header.channel_id == policy.channel_id
   require policy.min_state_number <= header.state_number
   require header.state_number <= policy.max_state_number
-  require current_time_or_block <= policy.expiry
   require tx_fee(tx) <= policy.max_fee_per_tx
   require cumulative_fee_after(tx) <= policy.max_total_fee
   require sponsor_change_lock(tx) == policy.change_lock
   require no_channel_assets_in_sponsor_change(tx)
   require operation_is_publication_or_challenge(tx)
 \end{lstlisting}
+
+Expiry windows, allowed sponsor sources, scan cadence, and webhook policy are
+operator/watchtower policy in V1 unless the deployment gives the script
+verifiable evidence for those fields.
 
 The policy is not an open wallet delegation. It is a bounded publication right scoped to one channel and one state interval.
 
@@ -958,7 +961,7 @@ A watchtower is a liveness delegate, not a custodian. It stores the latest state
 (\Header,\Payload\ \mathrm{or}\ \mathrm{roots},\Pi,\Sigma,\mathsf{sponsor\_policy}).
 \]
 
-The sponsor policy must be bounded by channel identity, state-number range, maximum fee, expiry, allowed sponsor source, and change destination. The watchtower should not be able to redirect channel-owned value or drain arbitrary wallet funds.
+The script-enforced sponsor boundary must be bounded by channel identity, state-number range, maximum fee, expected State Type, and change destination. Expiry windows, allowed sponsor sources, and publishing cadence are operator/watchtower policy in V1 unless a deployment provides script-verifiable evidence for those fields. The watchtower should not be able to redirect channel-owned value or drain arbitrary wallet funds.
 
 \section{Safety Properties}
 
