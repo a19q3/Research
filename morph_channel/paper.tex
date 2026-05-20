@@ -216,6 +216,9 @@ This paper makes seven contributions.
   \item \textbf{Authentic state authority.} Vault finalisation is authorised by an authentic current State Cell under the expected scripts, not by bytes that merely decode as a state header.
   \item \textbf{Canonical challenge maturity.} V1 finalisation maturity is a canonical relative-block CKB \texttt{since} condition, not a raw integer threshold.
   \item \textbf{Value conservation for local proofs.} Non-interference localises a change; value-bearing right increases still require full consent or a real asset-delta witness.
+  \item \textbf{Signed descriptor evolution.} A settlement descriptor instance may evolve only as part of a newly signed state; finalisation uses the descriptor commitment bound to the current authentic state.
+  \item \textbf{Non-orphaning retirement.} Retiring state evidence must be coupled to value finalisation, or must leave verifiable evidence sufficient for value finalisation.
+  \item \textbf{No unverifiable sponsor deadlines.} Sponsor-policy fields that require unavailable chain evidence must remain operator policy, or be inadmissible as script-enforced constraints.
 \end{enumerate}
 
 \section{System Model and Threat Assumptions}
@@ -261,7 +264,7 @@ A Morph channel configuration is a tuple
 \mathsf{challenge},\mathsf{version}).
 \]
 
-\noindent Here $\mathsf{fund}$ identifies the funding anchor, $\mathsf{assets}$ commits to the asset registry, $\mathsf{descriptor}$ commits to settlement-output derivation, and $\mathsf{challenge}$ specifies the relative finalisation policy.
+\noindent Here $\mathsf{fund}$ identifies the funding anchor, $\mathsf{assets}$ commits to the asset registry, $\mathsf{descriptor}$ commits to the current settlement-output derivation, and $\mathsf{challenge}$ specifies the relative finalisation policy. The descriptor commitment is state semantics: descriptor instances may advance with newly signed state, while descriptor grammar, version boundaries, and authorisation rules remain protocol semantics.
 
 \subsection{Stable Funding Bundle}
 
@@ -331,7 +334,7 @@ The version fields are part of the signed domain. The purpose is not only to pre
 
 \subsection{Sponsor Partition}
 
-Sponsor funds are not part of the channel-owned value partition. They are ordinary wallet Cells, watchtower-owned Cells, or pre-authorised fee budgets. The script-enforced budget boundary should include channel identity, state-number range, maximum fee, expected state type, and clean change destination. Expiry windows, allowed sponsor sources, publishing cadence, and webhook policy may also be enforced by an operator or watchtower layer unless the deployment gives the script verifiable evidence for those fields.
+Sponsor funds are not part of the channel-owned value partition. They are ordinary wallet Cells, watchtower-owned Cells, or pre-authorised fee budgets. The script-enforced budget boundary should include channel identity, state-number range, maximum fee, expected state type, and clean change destination. Expiry windows, allowed sponsor sources, publishing cadence, and webhook policy may also be enforced by an operator or watchtower layer. If a deployment lacks script-verifiable evidence for such a field, the field must not be silently treated as a script-enforced safety condition.
 
 \begin{figure}[htbp]
 \centering
@@ -410,10 +413,12 @@ verify_state_transition(tx):
           == old_header.funding_anchor_identity
   require new_header.asset_registry_commitment
           == old_header.asset_registry_commitment
-  require new_header.settlement_descriptor_commitment
-          == old_header.settlement_descriptor_commitment
-  require new_header.descriptor_version
-          == old_header.descriptor_version
+  require descriptor_transition_admissible(
+          old_header.settlement_descriptor_commitment,
+          new_header.settlement_descriptor_commitment,
+          old_header.descriptor_version,
+          new_header.descriptor_version,
+          witness)
   require new_header.challenge_policy_commitment
           == old_header.challenge_policy_commitment
   require new_header.state_number > old_header.state_number
@@ -426,6 +431,12 @@ verify_state_transition(tx):
   require partition_conservation(tx, new_header.asset_registry_commitment)
   require output_state_capacity_sufficient(new)
 \end{lstlisting}
+
+The descriptor transition predicate is deliberately narrow. It permits a new
+descriptor instance only when the new State Header is signed under the normal
+state-signing domain and the descriptor version and grammar remain within the
+protocol's accepted boundary. The vault later settles only against the
+descriptor commitment in the current authentic State Cell.
 
 The ``exactly one input, exactly one output'' rule is the script-level expression of State Cell uniqueness. Mempool races are resolved by the ordinary CKB single-spend rule: competing transactions may exist, but at most one can consume the current State Cell on-chain.
 
@@ -480,7 +491,9 @@ verify_sponsor_budget_spend(tx):
 
 Expiry windows, allowed sponsor sources, scan cadence, and webhook policy are
 operator/watchtower policy in V1 unless the deployment gives the script
-verifiable evidence for those fields.
+verifiable evidence for those fields. A bounded sponsor script should reject, or
+otherwise make inadmissible, a finite script-level deadline for which it cannot
+verify the relevant chain evidence.
 
 The policy is not an open wallet delegation. It is a bounded publication right scoped to one channel and one state interval.
 
@@ -961,7 +974,7 @@ A watchtower is a liveness delegate, not a custodian. It stores the latest state
 (\Header,\Payload\ \mathrm{or}\ \mathrm{roots},\Pi,\Sigma,\mathsf{sponsor\_policy}).
 \]
 
-The script-enforced sponsor boundary must be bounded by channel identity, state-number range, maximum fee, expected State Type, and change destination. Expiry windows, allowed sponsor sources, and publishing cadence are operator/watchtower policy in V1 unless a deployment provides script-verifiable evidence for those fields. The watchtower should not be able to redirect channel-owned value or drain arbitrary wallet funds.
+The script-enforced sponsor boundary must be bounded by channel identity, state-number range, maximum fee, expected State Type, and change destination. Expiry windows, allowed sponsor sources, and publishing cadence are operator/watchtower policy in V1 unless a deployment provides script-verifiable evidence for those fields; finite script-level deadlines without such evidence should be rejected rather than treated as consensus-enforced policy. The watchtower should not be able to redirect channel-owned value or drain arbitrary wallet funds.
 
 \section{Safety Properties}
 
@@ -997,7 +1010,7 @@ This draft does not claim empirical closure. It defines a benchmark agenda:
   \item factory proof size under realistic touched-footprint distributions;
   \item CKB-VM cycles for signature verification, hash verification, proof verification, and xUDT type-script composition;
   \item challenge reliability under confirmation-depth, fee-volatility, and watchtower-polling parameters;
-  \item sponsor-policy failure cases, including insufficient budget, expired policy, and wrong change destination;
+  \item sponsor-policy failure cases, including insufficient budget, inadmissible finite script-level expiry, operator-level expiry, and wrong change destination;
   \item State Cell uniqueness tests under concurrent publication and supersession attempts;
   \item vault-lock rejection tests for spends lacking current state evidence;
   \item reserve refund, occupied-capacity, business-CKB, and per-xUDT conservation edge cases;
@@ -1024,7 +1037,7 @@ The construction remains incomplete in several respects:
   \item Different xUDT implementations may impose different constraints.
   \item The paper now specifies script-level semantics, but not byte-level Molecule schemas or complete CKB-VM implementations.
   \item Factory non-interference still requires a formal rights-dependency schema before reduced signing sets are safe.
-  \item Typed reduced exits require complete binding of asset type, amount, child vault, settlement descriptor, and factory-vault change before they can be treated as active V1 acceptance paths.
+  \item Typed reduced exits are admissible only when asset type, amount, child vault, settlement descriptor, and factory-vault change are completely bound; broader typed-asset compatibility remains future work.
 \end{enumerate}
 
 \section{Conclusion}
@@ -1051,12 +1064,15 @@ ID & Invariant & Enforced by & Positive case & Negative case \\
 S1 & One live State Cell controls the channel pointer & State Cell type plus CKB single-spend & supersede $n \rightarrow n+1$ by consuming current State Cell & transaction creates two successor State Cells \\
 S2 & Funding anchor identity is canonical & State Header plus \texttt{cell\_deps} check & referenced anchor matches committed genesis identity & descriptor-shaped fake anchor is referenced \\
 S3 & State numbers are strictly monotonic & State Cell type script & supersede $n \rightarrow n+k$ with valid signatures & publish lower or equal state number \\
+S4 & State retirement does not orphan value & State and vault authority coupling & retirement finalises value or leaves verifiable finalisation evidence & State Cell is consumed while matching vault value remains live without evidence \\
 V1 & Vault value follows current state evidence & Vault lock and settlement descriptor & finalise after valid \texttt{since} delay & wallet-only spend of vault value \\
 V2 & Vault authority requires an authentic State Cell & State/Vault script identity checks & State Cell under expected scripts controls finalise & ordinary Cell carries decodable State Header bytes \\
+V3 & Descriptor evolution is signed state semantics & State signature and descriptor commitment & newer signed state commits to an admissible descriptor instance & finalise supplies an unsigned replacement descriptor \\
 P1 & Channel-owned capacity never pays publication fees & partition conservation & sponsor capacity pays fee and receives change & reserve reduced by transaction fee \\
 P2 & Reserve and business CKB are not confused & reserve and business-CKB ledgers & authorised reserve refund is explicit & reserve becomes hidden business balance or fee \\
 X1 & xUDT value is conserved by canonical type script & asset registry and xUDT type check & same canonical type script and amount & same symbol or metadata with different type script \\
 G1 & Sponsor change is uncontaminated & sponsor policy and partition classifier & sponsor change contains only sponsor capacity & sponsor change carries registered xUDT or vault lock \\
+G2 & Unverifiable sponsor deadlines are not script policy & sponsor policy boundary & unbounded script policy or verifiable deadline evidence & finite deadline is accepted without chain-verifiable evidence \\
 U1 & Unrelated Cells cannot influence channel validity & script read set and conservation classifier & unrelated wallet input pays no channel role & helper Cell is read by channel scripts without classification \\
 C1 & Challenge safety is confirmation-based & deployment profile and \texttt{since} policy & newer state confirms before deadline & stale state finalises while newer tx is only in mempool \\
 C2 & Challenge maturity is canonical relative block \texttt{since} & State/Vault since parser & encoded relative block delay matures & raw absolute integer is accepted as a delay \\
