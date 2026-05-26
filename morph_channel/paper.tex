@@ -217,6 +217,7 @@ This paper makes seven contributions.
   \item \textbf{Canonical challenge maturity.} V1 finalisation maturity is a canonical relative-block CKB \texttt{since} condition, not a raw integer threshold.
   \item \textbf{Value conservation for local proofs.} Non-interference localises a change; value-bearing right increases still require full consent or a real asset-delta witness.
   \item \textbf{Signed descriptor evolution.} A settlement descriptor instance may evolve only as part of a newly signed state; finalisation uses the descriptor commitment bound to the current authentic state.
+  \item \textbf{Exact materialisation.} Any value-bearing Cell shape declared by a signed descriptor, delta, or local witness must be materialised on-chain with the exact lock, capacity, type identity, and data or amount it commits to.
   \item \textbf{Non-orphaning retirement.} Retiring state evidence must be coupled to value finalisation, or must leave verifiable evidence sufficient for value finalisation.
   \item \textbf{No unverifiable sponsor deadlines.} Sponsor-policy fields that require unavailable chain evidence must remain operator policy, or be inadmissible as script-enforced constraints.
 \end{enumerate}
@@ -755,6 +756,10 @@ The settlement descriptor is a protocol object, not a general-purpose applicatio
 The descriptor must authorise settlement, splice, factory materialisation, and reserve refund. It must not introduce unbounded application execution into channel witnesses.
 \end{invariant}
 
+\begin{invariant}[Exact Materialisation]
+A signed descriptor or vault delta is not only an accounting statement. For every value-bearing Cell it authorises, the realised Cell must match the committed lock identity, capacity, type-script identity, and data-encoded amount. A proof that only one asset lane changed is insufficient if the resulting Cell shape can drift in an untouching lane.
+\end{invariant}
+
 \section{Bilateral Witness Mode}
 
 For a two-party channel, the first witness format should remain plaintext. This is not a claim that privacy is irrelevant; it is a complexity boundary. Bilateral state is typically small: balances, conditional payments, timeout information, and shutdown policies. Plaintext witnesses make force-close transactions auditable and make early prototypes easier to test.
@@ -1037,7 +1042,7 @@ The construction remains incomplete in several respects:
   \item Different xUDT implementations may impose different constraints.
   \item The paper now specifies script-level semantics, but not byte-level Molecule schemas or complete CKB-VM implementations.
   \item Factory non-interference still requires a formal rights-dependency schema before reduced signing sets are safe.
-  \item Typed reduced exits are admissible only when asset type, amount, child vault, settlement descriptor, and factory-vault change are completely bound; broader typed-asset compatibility remains future work.
+  \item Typed reduced exits and typed factory vault changes are admissible only when asset type, amount, capacity, child or factory vault Cell shape, settlement descriptor, and factory-vault change are completely bound; broader typed-asset compatibility remains future work.
 \end{enumerate}
 
 \section{Conclusion}
@@ -1078,6 +1083,7 @@ C1 & Challenge safety is confirmation-based & deployment profile and \texttt{sin
 C2 & Challenge maturity is canonical relative block \texttt{since} & State/Vault since parser & encoded relative block delay matures & raw absolute integer is accepted as a delay \\
 F1 & Factory locality preserves untouched rights & proof bundle and rights-dependency graph & touched leaves prove affected rights only & shared reserve or exit right changes without authorisation \\
 F2 & Factory locality is not mint authority & local validity and conservation predicates & value right decreases or vault-delta-bound increases & Merkle-only proof increases ReserveClaim or Balance \\
+F3 & Factory vault materialisation matches signed descriptors & descriptor and delta materialisation checks & FactoryVault capacity, type, and amount match the signed descriptor & xUDT token delta is correct but the recreated FactoryVault capacity drifts \\
 \bottomrule
 \end{tabular}
 \caption{Construction audit matrix for Morph Channel.}
