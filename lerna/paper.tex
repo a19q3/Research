@@ -117,11 +117,12 @@ dependent on existing Hydra close, contest, and fanout semantics. V0 safety
 requires at least one authorised Head participant, operator, or delegated
 watcher to checkpoint or materialise the latest relevant Lerna state into a
 Hydra snapshot before contestation expires. If that assumption is unacceptable,
-the application must move to a future V1 claim-UTxO or another claim design;
-this note does not claim V1 feasibility. The originality claim is limited to
-three prototype obligations: C1, an inner factory-rights discipline; C2,
-deterministic inner materialisation before outer fanout or rollout; and C3,
-factory-local non-interference plus release receipts.
+the application must move to a full V1 claim-UTxO or another claim design. This
+note treats general V1 as future work; it reports only a strict ADA-only,
+full-authorisation claim-UTxO devnet profile as implementation evidence. The
+originality claim is limited to three prototype obligations: C1, an inner
+factory-rights discipline; C2, deterministic inner materialisation before outer
+fanout or rollout; and C3, factory-local non-interference plus release receipts.
 \end{abstract}
 
 \vfill
@@ -354,7 +355,8 @@ the broader adjudication pattern: off-chain state becomes enforceable through a
 dispute or adjudication mechanism~\cite{perun}. The closing boundary is that
 these works provide intellectual lineage only. Lerna does not take
 Bitcoin-specific assumptions, and it reserves heavyweight Cardano adjudication
-for the future V1 claim-UTxO mode, whose feasibility is not claimed here.
+for the full V1 claim-UTxO mode. The current implementation covers only a
+strict ADA-only, full-authorisation claim profile, not general V1 feasibility.
 
 \section{System Model}
 
@@ -536,8 +538,9 @@ rights.
 If these assumptions are unacceptable for a target application, the application
 must move to V1 or another claim-UTxO design. V0 is a practical Hydra-local
 factory discipline, not a universal unilateral-exit protocol for users who are
-entirely outside the Head participant set. This paper does not present V1 as
-deployable.
+entirely outside the Head participant set. This paper presents only a narrow
+strict V1 devnet profile as evidence; full V1 remains undeployable until its
+proof grammar, batching, and native-asset rules are complete.
 \end{remark}
 
 \begin{remark}[Delegation open question]
@@ -778,8 +781,8 @@ and inner materialisation.
 Physical Hydra Head & A compact factory UTxO or Head-local state object whose rights materialise before fanout & Uses Hydra close, contest, and fanout exactly as the outer dispute substrate; no V0 L1 dispute\\
 Interhead virtual Head & A factory inside the virtual Head state, managing rights below the virtualised Head & Inner materialisation deadlines must fit inside Interhead conversion and outer Hydra contestation deadlines\\
 Hydrozoa multisig-style ledger & A compact L2 ledger object whose withdrawals or local exits are deterministically unfolded & Peer consensus must checkpoint factory state and agree on the inner rollout plan before outer settlement\\
-Hydrozoa rule-based-style ledger & A future claim-like object whose validator might adjudicate unresolved Lerna rights & V1 only; proof grammar, latest-state rule, and output rollout must be specified and benchmarked\\
-Plain Cardano L1 & A possible V1 claim UTxO after a Head has fanned out unresolved factory state & Future work; validator cost, proof size, native-asset handling, and min-ADA safety are open\\
+Hydrozoa rule-based-style ledger & A future claim-like object whose validator might adjudicate unresolved Lerna rights & Full V1 only; proof grammar, latest-state rule, and output rollout must be specified and benchmarked\\
+Plain Cardano L1 & A possible V1 claim UTxO after a Head has fanned out unresolved factory state & Strict devnet profile only today; full validator cost, proof size, native-asset handling, and multi-batch safety remain open\\
 \bottomrule
 \end{longtable}
 
@@ -1300,15 +1303,40 @@ latest-state evidence.
 
 \subsection{V1 Claim-UTxO Fanout}
 
-V1 is future work. If the Head closes before all virtual channels are
+Full V1 remains future work. If the Head closes before all virtual channels are
 materialised, the final Head UTxO set may include a script-controlled L1 claim
-UTxO representing the unresolved factory state. An Aiken or Plutus validator
-would then enforce domain-separated latest-state signatures, state
+UTxO representing the unresolved factory state. A complete Aiken or Plutus
+validator would then enforce domain-separated latest-state signatures, state
 monotonicity, local exits, non-interference proofs, native-asset conservation,
-min-ADA-safe output creation, and release receipt consumption.
+min-ADA-safe output creation, release receipt consumption, and a way to split
+large materialisation sets across several transactions.
 
-This is research-heavy. Until such validators are specified and tested, V1
-should not be presented as deployable.
+The implemented V1 evidence is narrower. The strict devnet profile is
+ADA-only, uses full factory authorisation rather than reduced signatures, and
+requires a single final claim settlement. Its value is that two audit-critical
+objects are no longer merely comments:
+\[
+P_{\mathsf{V1}} =
+(B_{\mathsf{outputs}},B_{\mathsf{proofBytes}},
+B_{\mathsf{exMem}},B_{\mathsf{exSteps}})
+\]
+is a materialisation admission envelope, and
+\[
+A_{\mathsf{V1}}=(\mathsf{mode},\mathsf{witnessRoot})
+\]
+is a proof-availability binding. Both are carried in the claim datum, included
+in the claim-state commitment, and repeated in the latest-state evidence
+header. The current mode is a fixed full-witness-package hash. The validator
+can check the committed fields, the fixed mode, state monotonicity, exact
+datum-bound signers, selected-output descriptors, min-ADA, ADA-only selected
+outputs, release receipts, and output-count fit. The real-devnet verifier then
+checks the measured signed-transaction size and Cardano CLI script-cost units
+against \(P_{\mathsf{V1}}\).
+
+This profile is useful evidence for the admission-control direction, but it is
+not a complete V1 protocol. Reduced-signature non-interference, native-asset
+claims, multi-batch pending suffixes, and a general proof-availability
+retrieval protocol remain open.
 
 \section{Latest-state Settlement Semantics}
 
@@ -2018,6 +2046,43 @@ which checks were enforced by validator or validator-compatible transaction
 rules, which were enforced by off-chain construction, and which remained
 test-only assertions.
 
+\subsection{Enforcement Taxonomy}
+
+The implementation report must separate four enforcement layers. Mixing them is
+a safety bug, because a fact measured by a verifier after the run is not the
+same as a fact rejected by the ledger during the run.
+
+\begin{longtable}{L{0.22\textwidth}L{0.38\textwidth}L{0.29\textwidth}}
+\toprule
+\textbf{Layer} & \textbf{Examples} & \textbf{Security meaning}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Layer} & \textbf{Examples} & \textbf{Security meaning}\\
+\midrule
+\endhead
+Validator or transaction-rule enforced & Datum domain separator, state
+monotonicity, exact signer set, selected-output equality, ADA-only selected
+outputs, release receipt root, claim-bound output count & Invalid transactions
+are rejected by the ledger or Head-compatible transaction semantics\\
+Claim-bound verifier enforced & Proof-size cap, execution-unit cap, local
+artifact hashes, local script-cost file, signed transaction size & Acceptance
+evidence is rejected unless the measured run fits the committed envelope\\
+Off-chain construction enforced & Canonical materialisation prefix, transaction
+preflight, signer collection, watcher routing, operator-budget accounting &
+Correct software should construct only admissible candidates, but the paper must
+not call this ledger enforcement\\
+Deployment assumption & Honest authorised actor, watcher response time, proof
+retrieval, Hydra contestation window, Docker/devnet reproducibility & A
+condition that must be monitored or replaced by a stronger protocol mechanism\\
+\bottomrule
+\end{longtable}
+
+For the strict V1 devnet profile, materialisation admission is split across the
+first two rows: the validator binds the budget envelope into the claim datum and
+state commitment, while the verifier rejects evidence whose measured proof size
+or execution units exceed that envelope.
+
 \paragraph{Validator or transaction-rule enforced.}
 \begin{itemize}[leftmargin=2.2em]
 \item factory id and Head id binding;
@@ -2060,9 +2125,9 @@ watching and contest authority without turning operators into custodians?
 Hydra contestation windows for ADA-only outputs, then for native-asset bundles?
 \item Which commitment scheme offers the best proof-size and validator-cost
 trade-off for touched leaves and non-interference proofs?
-\item Can a V1 L1 claim UTxO enforce state monotonicity, signatures,
-non-interference, min-ADA, and native-asset conservation within practical
-Aiken/Plutus budgets?
+\item Can the strict V1 L1 claim-UTxO profile be extended to enforce
+reduced-signature non-interference, multi-batch materialisation, min-ADA, and
+native-asset conservation within practical Aiken/Plutus budgets?
 \item Would Hydrozoa-style dynamic membership change the assumptions behind the
 factory participant registry and rights-dependency graph?
 \item How should release receipts be encoded so that they prevent double claims
