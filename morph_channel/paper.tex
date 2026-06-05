@@ -93,11 +93,11 @@ Off-chain channel protocols must combine rapid off-chain state progression with 
 
 \medskip
 \noindent\textbf{Technical Contributions.}
-This paper proposes Morph Channel, a CKB-native channel and channel-factory construction. It decomposes a channel into a stable funding anchor, moving state evidence, and a sponsor-owned publication layer. It defines a state-header-centric signing domain that excludes sponsor coin selection while binding chain context, channel identity, funding anchor, state number, asset registry, settlement descriptor, and challenge policy. It gives script-level validation sketches for the State Cell, vault lock, and bounded sponsor budget. It also introduces a partition-conservation algorithm under which occupied capacity, channel reserve, business CKB, and each xUDT type are checked separately, while publication fees are extracted only from sponsor-owned value. For bilateral channels, the first witness format is intentionally plaintext and auditable. For factories, authority moves to commitments, access manifests, local proofs, and touched leaves.
+This paper proposes Morph Channel, a CKB-native channel and channel-factory construction. It decomposes a channel into a stable logical channel identity, a signed funding epoch, moving state evidence, and a sponsor-owned publication layer. It defines a state-header-centric signing domain that excludes sponsor coin selection while binding chain context, channel identity, funding epoch, funding anchor, vault-set commitment, state number, asset registry, settlement descriptor, and challenge policy. It gives script-level validation sketches for the State Cell, vault lock, and bounded sponsor budget. It also introduces a partition-conservation algorithm under which occupied capacity, channel reserve, business CKB, and each xUDT type are checked separately, while publication fees are extracted only from sponsor-owned value. For bilateral channels, the first witness format is intentionally plaintext and auditable. For factories, authority moves to commitments, access manifests, local proofs, touched leaves, and an envelope-first admissibility rule: the transition family is bounded and committed before the proof body is interpreted.
 
 \medskip
 \noindent\textbf{Formal Consequences.}
-Under standard signature unforgeability and hash collision-resistance assumptions, Morph state signatures are non-replayable across channels and funding anchors. State Cell uniqueness is reduced to CKB's ordinary single-spend rule by making every non-initial state transition consume the currently live State Cell and create exactly one successor. If the relative challenge window covers detection, watchtower polling, transaction propagation, confirmation, fee bumping, and reorganisation margin, then a newer valid state can supersede an older published state before finalisation. Partition conservation implies zero channel-paid publication fees. A local factory exit is safe only under either full factory authorisation or a proof of non-interference for untouched participants.
+Under standard signature unforgeability and hash collision-resistance assumptions, Morph state signatures are non-replayable across channels, funding epochs, funding anchors, and vault sets. State Cell uniqueness is reduced to CKB's ordinary single-spend rule by making every non-initial state transition consume the currently live State Cell and create exactly one successor. If the relative challenge window covers detection, watchtower polling, transaction propagation, confirmation, fee bumping, and reorganisation margin, then a newer valid state can supersede an older published state before finalisation. Partition conservation implies zero channel-paid publication fees. A local factory exit is safe only under either full factory authorisation or an admitted local proof that establishes non-interference for untouched participants.
 
 \medskip
 \noindent\textbf{Paper Type.}
@@ -193,14 +193,16 @@ Morph Channel collapses authority into a signed state header plus the admissible
 
 \subsection{Main Contributions}
 
-This paper makes seven contributions.
+This paper makes eight contributions.
 
 \begin{enumerate}[label=C\arabic*.]
   \item \textbf{Stable funding and moving evidence.} It defines a dual-track Cell construction in which channel value remains in stable funding and vault Cells, while disputes move a State Cell.
   \item \textbf{State-header-centric signing.} It specifies a canonical signing domain that binds identity and semantics while excluding sponsor coin-selection details.
   \item \textbf{Sponsored publication.} It defines a sponsor-owned publication partition and requires unilateral publication to be fee-bumpable without counterparty re-signing.
   \item \textbf{Partition conservation.} It replaces fee-cap reasoning with exact conservation of channel-owned value and fee extraction from sponsor-owned value.
+  \item \textbf{Splice-aware funding identity.} It distinguishes stable logical channel identity from the current funding epoch, funding anchor, and vault set, so resizing a channel does not make stale evidence reusable.
   \item \textbf{Bilateral/factory witness separation.} It argues that bilateral channels should begin with plaintext witnesses, while factories require commitment-authoritative local proofs.
+  \item \textbf{Envelope-first factory authorisation.} It separates admission of a factory transition from interpretation of its proof body: a bounded outer claim names the transition family and commits to one evidence body.
   \item \textbf{Challenge-window budgeting.} It derives the relative-\texttt{since} delay as a deployment parameter covering detection, polling, propagation, confirmation, fee volatility, and reorg margin.
   \item \textbf{Factory non-interference.} It identifies non-interference as the condition required before a factory action can safely reduce its signing set below all participants.
 \end{enumerate}
@@ -214,12 +216,14 @@ This paper makes seven contributions.
   \item \textbf{Measurability before defaulting.} Proof mode is not assumed cheaper until transaction size and CKB-VM cycles are measured.
   \item \textbf{Conservative factory coordination.} Locality is a verification property, not a substitute for multi-party authorisation.
   \item \textbf{Authentic state authority.} Vault finalisation is authorised by an authentic current State Cell under the expected scripts, not by bytes that merely decode as a state header.
-  \item \textbf{Canonical challenge maturity.} V1 finalisation maturity is a canonical relative-block CKB \texttt{since} condition, not a raw integer threshold.
+  \item \textbf{Canonical challenge maturity.} Finalisation maturity is a canonical relative-block CKB \texttt{since} condition, not a raw integer threshold.
   \item \textbf{Value conservation for local proofs.} Non-interference localises a change; value-bearing right increases still require full consent or a real asset-delta witness.
   \item \textbf{Signed descriptor evolution.} A settlement descriptor instance may evolve only as part of a newly signed state; finalisation uses the descriptor commitment bound to the current authentic state.
   \item \textbf{Exact materialisation.} Any value-bearing Cell shape declared by a signed descriptor, delta, or local witness must be materialised on-chain with the exact lock, capacity, type identity, and data or amount it commits to.
   \item \textbf{Non-orphaning retirement.} Retiring state evidence must be coupled to value finalisation, or must leave verifiable evidence sufficient for value finalisation.
   \item \textbf{No unverifiable sponsor deadlines.} Sponsor-policy fields that require unavailable chain evidence must remain operator policy, or be inadmissible as script-enforced constraints.
+  \item \textbf{Envelope before factory body.} A factory proof body is admissible only after a bounded outer claim identifies the transition family and commits to that body; proof bytes must not decide their own authority class.
+  \item \textbf{Splice freshness.} Watchtower and settlement evidence must be funding-epoch and vault-set aware, so a package from an earlier funding anchor cannot govern a later resized channel.
 \end{enumerate}
 
 \section{System Model and Threat Assumptions}
@@ -265,7 +269,7 @@ A Morph channel configuration is a tuple
 \mathsf{challenge},\mathsf{version}).
 \]
 
-\noindent Here $\mathsf{fund}$ identifies the funding anchor, $\mathsf{assets}$ commits to the asset registry, $\mathsf{descriptor}$ commits to the current settlement-output derivation, and $\mathsf{challenge}$ specifies the relative finalisation policy. The descriptor commitment is state semantics: descriptor instances may advance with newly signed state, while descriptor grammar, version boundaries, and authorisation rules remain protocol semantics.
+\noindent Here $\mathsf{fund}$ identifies the current funding epoch, funding anchor, and vault-set commitment, $\mathsf{assets}$ commits to the asset registry, $\mathsf{descriptor}$ commits to the current settlement-output derivation, and $\mathsf{challenge}$ specifies the relative finalisation policy. The descriptor commitment is state semantics: descriptor instances may advance with newly signed state, while descriptor grammar, version boundaries, and authorisation rules remain protocol semantics.
 
 \subsection{Stable Funding Bundle}
 
@@ -274,7 +278,7 @@ The funding bundle $\mathcal{F}$ consists of a channel identity Cell and zero or
 \[
 \mathcal{F} = (\Fund, \Vault_1,\ldots,\Vault_k).
 \]
-The bundle carries channel identity and channel-owned value. It is stable during ordinary off-chain state progression.
+The bundle carries channel identity and channel-owned value. It is stable during ordinary off-chain state progression. A splice may replace the current funding anchor and vault set, but only by advancing the signed funding epoch while preserving the logical channel identity.
 \end{definition}
 
 \begin{definition}[Vault Authorisation]
@@ -309,7 +313,9 @@ StateHeader {
   chain_id
   signature_scheme_id
   channel_id_or_genesis_identity
+  funding_epoch
   funding_anchor_identity
+  vault_set_commitment
   state_number
   mode
   phase
@@ -331,7 +337,7 @@ m_n =
 \parallel \mathrm{canonical}(\Header_n)).
 \]
 
-The version fields are part of the signed domain. The purpose is not only to prevent replay across channels, but also to prevent an old signature from being reinterpreted by a later descriptor, signature scheme, or state-layout parser.
+The version fields, funding epoch, funding anchor, and vault-set commitment are part of the signed domain. The purpose is not only to prevent replay across channels, but also to prevent an old signature from being reinterpreted by a later descriptor, funding anchor, vault set, signature scheme, or state-layout parser.
 
 \subsection{Sponsor Partition}
 
@@ -396,7 +402,7 @@ This section is intentionally pseudo-code rather than byte-level CKB-VM code. It
 
 \subsection{State Cell Type Semantics}
 
-The State Cell type script owns state progression. It does not spend channel value; it verifies the identity and monotonicity of state evidence.
+The State Cell type script owns state progression. It does not spend channel value; it verifies the identity and monotonicity of state evidence. Ordinary publication and supersession preserve the current funding epoch, funding anchor, and vault-set commitment. A splice is a separate re-anchoring transition: it must prove both the old and new funding context, rather than silently changing these fields inside an ordinary state update.
 
 \begin{lstlisting}
 verify_state_transition(tx):
@@ -410,8 +416,11 @@ verify_state_transition(tx):
   require new_header.signature_scheme_id
           == old_header.signature_scheme_id
   require new_header.channel_id == old_header.channel_id
+  require new_header.funding_epoch == old_header.funding_epoch
   require new_header.funding_anchor_identity
           == old_header.funding_anchor_identity
+  require new_header.vault_set_commitment
+          == old_header.vault_set_commitment
   require new_header.asset_registry_commitment
           == old_header.asset_registry_commitment
   require descriptor_transition_admissible(
@@ -438,6 +447,13 @@ descriptor instance only when the new State Header is signed under the normal
 state-signing domain and the descriptor version and grammar remain within the
 protocol's accepted boundary. The vault later settles only against the
 descriptor commitment in the current authentic State Cell.
+
+Splice validation is deliberately not folded into ordinary monotonic
+publication. It must bind the old funding anchor, the new funding anchor, the
+old vault-set commitment, the new vault-set commitment, the asset deltas, and
+the participant signatures in one signed re-anchoring event. This prevents a
+watchtower package or settlement descriptor from an earlier funding epoch from
+being replayed after the channel has been resized.
 
 The ``exactly one input, exactly one output'' rule is the script-level expression of State Cell uniqueness. Mempool races are resolved by the ordinary CKB single-spend rule: competing transactions may exist, but at most one can consume the current State Cell on-chain.
 
@@ -491,7 +507,7 @@ verify_sponsor_budget_spend(tx):
 \end{lstlisting}
 
 Expiry windows, allowed sponsor sources, scan cadence, and webhook policy are
-operator/watchtower policy in V1 unless the deployment gives the script
+operator/watchtower policy in the conservative profile unless the deployment gives the script
 verifiable evidence for those fields. A bounded sponsor script should reject, or
 otherwise make inadmissible, a finite script-level deadline for which it cannot
 verify the relevant chain evidence.
@@ -529,12 +545,13 @@ Let the channel phase be one of
 \label{fig:state-machine}
 \end{figure}
 
-The lifecycle contains five operations:
+The lifecycle contains six operations:
 \[
 \mathsf{FUND},\quad
 \mathsf{OFFCHAIN\_UPDATE},\quad
 \mathsf{PUBLISH},\quad
 \mathsf{SUPERSEDE},\quad
+\mathsf{SPLICE},\quad
 \mathsf{FINALIZE}.
 \]
 
@@ -601,6 +618,14 @@ The transaction body is not the protocol authority. It is a reconstructible carr
 \caption{Publication and supersession transaction shape. The channel evidence can be reused while the sponsor inputs and fee choice are rebuilt.}
 \label{fig:publish-transaction}
 \end{figure}
+
+\subsection{SPLICE}
+
+\textsf{SPLICE} resizes a channel without closing its logical relationship. It is neither an ordinary off-chain update nor a final settlement. It is a signed re-anchoring transition that consumes the current active state and old vault authority, advances the funding epoch, and creates a new state and vault set for the same logical channel.
+
+A splice-in increases the channel-controlled asset set by admitting external value. A splice-out releases value while preserving enough post-splice vault value to satisfy the latest signed settlement descriptor. In both cases, the signed transition must bind the old funding anchor, the new funding anchor, the old vault-set commitment, the new vault-set commitment, and the per-asset deltas. CKB and xUDT lanes are checked by asset identity and amount, not by informal wallet labels.
+
+The freshness consequence is important for recovery. A watchtower package saved before a splice is not automatically valid after the splice, even if it has a higher state number than some local record, because its signed funding epoch and vault-set commitment refer to a different enforceable value object.
 
 \subsection{FINALIZE}
 
@@ -783,10 +808,24 @@ FactoryState {
 \end{lstlisting}
 \end{definition}
 
+\begin{definition}[Factory Transition Envelope]
+A factory transition is admissible only after a bounded outer claim identifies its transition family and commits to exactly one evidence body:
+\begin{lstlisting}
+FactoryEnvelope {
+  transition_family
+  body_bound
+  body_commitment
+}
+\end{lstlisting}
+\end{definition}
+
+The envelope is not the local proof. It is the admission-control object that says which proof grammar is being invoked and which evidence body is committed. A body that merely parses as some factory payload is not authority unless the outer claim admits that transition family and binds that body.
+
 \begin{definition}[Factory Witness]
-A factory witness contains an access manifest, a proof bundle, touched leaf payloads, and the required signatures:
+A factory witness contains an outer transition envelope, an access manifest, a proof bundle, touched leaf payloads, and the required signatures:
 \begin{lstlisting}
 FactoryWitness {
+  envelope
   state_header
   access_manifest
   proof_bundle
@@ -813,7 +852,7 @@ A factory right is any participant-relevant claim that may be changed by a local
 A factory action is non-interfering with respect to untouched participants if the proof bundle establishes that all their factory rights are unchanged, including rights that depend on shared reserve, membership, exit path, or public sponsor-budget state.
 \end{definition}
 
-The difficult object in a factory is therefore not the Merkle proof alone, but the rights-dependency graph. A touched balance leaf may also affect reserve liquidity, local exit eligibility, or sponsor-budget allocation. A proof of non-interference must either cover those dependencies or the action must fall back to full-participant authorisation.
+The difficult object in a factory is therefore not the Merkle proof alone, but the rights-dependency graph and the transition-family boundary. A touched balance leaf may also affect reserve liquidity, local exit eligibility, or sponsor-budget allocation. A proof of non-interference must either cover those dependencies or the action must fall back to full-participant authorisation. An envelope-first boundary prevents a reduced proof from being interpreted as a different factory path after the fact.
 
 \begin{figure}[htbp]
 \centering
@@ -846,11 +885,19 @@ The difficult object in a factory is therefore not the Merkle proof alone, but t
 \end{figure}
 
 \begin{proposition}[Conservative Factory Authorisation]
-If a factory action cannot prove non-interference, then a conservative first implementation should require signatures from all factory participants. If non-interference is proven, the signing set may be reduced to the affected participants only when the touched rights also satisfy participant authorisation, local validity, and value conservation.
+If a factory action cannot prove non-interference, then a conservative protocol profile should require signatures from all factory participants. If non-interference is proven, the signing set may be reduced to the affected participants only when the touched rights also satisfy participant authorisation, local validity, and value conservation.
 \end{proposition}
 
 \begin{proof}
 Without non-interference, untouched leaves may still depend on shared membership, reserve, or exit-right state. A local signature set would not authorise those possible effects. Full-participant signatures authorise global effects. A non-interference proof removes only the effects on untouched rights; it does not by itself authorise minting a balance, increasing a reserve claim, deleting membership, or releasing value from a vault.
+\end{proof}
+
+\begin{proposition}[Envelope-First Factory Admissibility]
+If the factory transition family is not fixed and committed before the local proof body is interpreted, then reduced authorisation is unsafe.
+\end{proposition}
+
+\begin{proof}
+Different factory paths authorise different effects: a conservative update, a local exit, a single-right reduction, a sparse update, or a splice all have different admissible touched rights and value consequences. If the proof body determines its own authority class, an adversary may seek an alternative interpretation with weaker checks. A bounded outer claim fixes the transition family and commits to the body before local validity is evaluated, so the proof is checked only under the intended authority rule.
 \end{proof}
 
 \section{Challenge-Window Semantics}
@@ -867,7 +914,7 @@ Let $\Delta$ denote the finalisation delay encoded by relative \texttt{since}. A
 \Delta_{\mathrm{margin}}.
 \]
 
-The terms respectively represent detection confirmations, watchtower polling interval, transaction construction and propagation, confirmation of the newer-state transaction, and a margin for fee bumping and reorganisation risk. V1 uses a canonical relative block-number \texttt{since}. A future deployment may choose epoch- or timestamp-based maturity only if the mode, metric, reserved bits, and value are canonicalised and tested against current CKB hardfork semantics~\cite{ckb-since,ckb-since-timestamp,ckb-since-epoch}; raw integer comparison is not a valid challenge-window check.
+The terms respectively represent detection confirmations, watchtower polling interval, transaction construction and propagation, confirmation of the newer-state transaction, and a margin for fee bumping and reorganisation risk. The current conservative profile uses a canonical relative block-number \texttt{since}. A future deployment may choose epoch- or timestamp-based maturity only if the mode, metric, reserved bits, and value are canonicalised and tested against current CKB hardfork semantics~\cite{ckb-since,ckb-since-timestamp,ckb-since-epoch}; raw integer comparison is not a valid challenge-window check.
 
 \begin{table}[htbp]
 \centering
@@ -964,11 +1011,11 @@ Morph separates three authorisation domains:
 \end{enumerate}
 
 \begin{lemma}[Domain-Separated Anti-Replay]
-If protocol version, signature-scheme identity, chain identity, channel identity, funding anchor identity, asset registry, descriptor commitment, descriptor version, challenge policy, and state number are included in the signed State Header, then a valid state signature cannot be replayed as a valid state for another channel context or later protocol interpretation.
+If protocol version, signature-scheme identity, chain identity, channel identity, funding epoch, funding anchor identity, vault-set commitment, asset registry, descriptor commitment, descriptor version, challenge policy, and state number are included in the signed State Header, then a valid state signature cannot be replayed as a valid state for another channel context, funding context, or later protocol interpretation.
 \end{lemma}
 
 \begin{proof}
-Any change to the protocol version, signature scheme, chain, channel, funding anchor, asset registry, descriptor, descriptor version, challenge policy, or state number changes the canonical State Header and hence the signed message. Under signature unforgeability, the adversary cannot produce a valid participant signature for the modified context.
+Any change to the protocol version, signature scheme, chain, channel, funding epoch, funding anchor, vault set, asset registry, descriptor, descriptor version, challenge policy, or state number changes the canonical State Header and hence the signed message. Under signature unforgeability, the adversary cannot produce a valid participant signature for the modified context.
 \end{proof}
 
 \section{Watchtower and Recovery Objects}
@@ -979,16 +1026,26 @@ A watchtower is a liveness delegate, not a custodian. It stores the latest state
 (\Header,\Payload\ \mathrm{or}\ \mathrm{roots},\Pi,\Sigma,\mathsf{sponsor\_policy}).
 \]
 
-The script-enforced sponsor boundary must be bounded by channel identity, state-number range, maximum fee, expected State Type, and change destination. Expiry windows, allowed sponsor sources, and publishing cadence are operator/watchtower policy in V1 unless a deployment provides script-verifiable evidence for those fields; finite script-level deadlines without such evidence should be rejected rather than treated as consensus-enforced policy. The watchtower should not be able to redirect channel-owned value or drain arbitrary wallet funds.
+The script-enforced sponsor boundary must be bounded by channel identity, state-number range, maximum fee, expected State Type, and change destination. Expiry windows, allowed sponsor sources, and publishing cadence are operator/watchtower policy in the conservative profile unless a deployment provides script-verifiable evidence for those fields; finite script-level deadlines without such evidence should be rejected rather than treated as consensus-enforced policy. The watchtower should not be able to redirect channel-owned value or drain arbitrary wallet funds.
+
+After a splice, watchtower recovery must be funding-context aware. A stored package is publishable only if its signed funding epoch, funding anchor, and vault-set commitment match the currently live state track. Otherwise it is merely historical evidence for an older funding context.
 
 \section{Safety Properties}
 
-\begin{proposition}[Funding Anchor Uniqueness]
-If the State Header binds a funding anchor identity and scripts verify that referenced \texttt{cell\_deps} match that identity, then a descriptor-shaped but non-authoritative Cell cannot serve as the channel's funding anchor.
+\begin{proposition}[Funding Context Uniqueness]
+If the State Header binds the funding epoch, funding anchor identity, and vault-set commitment, and scripts verify that referenced \texttt{cell\_deps} match that context, then a descriptor-shaped but non-authoritative Cell cannot serve as the channel's funding anchor or vault set.
 \end{proposition}
 
 \begin{proof}
-The script compares the referenced Cell identity with the identity committed in the State Header. A different Cell, even with similar data, has a different outpoint or genesis identity and is rejected.
+The script compares the referenced Cell identity and vault-set commitment with the context committed in the State Header. A different Cell, even with similar data, has a different outpoint, genesis identity, or vault-set commitment and is rejected.
+\end{proof}
+
+\begin{proposition}[Post-Splice Freshness]
+If a splice advances the funding epoch and commits to a new vault set, then a state package from an earlier funding epoch cannot authorise settlement of the post-splice vaults.
+\end{proposition}
+
+\begin{proof}
+The earlier package signs a different funding epoch, funding anchor, or vault-set commitment. Since vault settlement requires the authentic current State Cell and the descriptor bound to that funding context, the older package does not match the post-splice value object.
 \end{proof}
 
 \begin{proposition}[Vault Spend Safety]
@@ -1017,8 +1074,10 @@ This draft does not claim empirical closure. It defines a benchmark agenda:
   \item challenge reliability under confirmation-depth, fee-volatility, and watchtower-polling parameters;
   \item sponsor-policy failure cases, including insufficient budget, inadmissible finite script-level expiry, operator-level expiry, and wrong change destination;
   \item State Cell uniqueness tests under concurrent publication and supersession attempts;
+  \item splice freshness tests showing that packages from earlier funding epochs cannot govern later vault sets;
   \item vault-lock rejection tests for spends lacking current state evidence;
   \item reserve refund, occupied-capacity, business-CKB, and per-xUDT conservation edge cases;
+  \item factory envelope-admission tests for transition-family confusion, body-bound violations, and digest mismatch;
   \item executable negative tests corresponding to the audit matrix in Appendix~\ref{app:audit-matrix};
   \item comparison between full plaintext factory disclosure and local proof verification.
 \end{enumerate}
@@ -1039,24 +1098,25 @@ The construction remains incomplete in several respects:
   \item Proof mode may not be cheaper than plaintext until measured.
   \item Mainnet challenge delays require empirical confirmation and fee data.
   \item Descriptor versioning must balance upgrade flexibility against recoverability.
-  \item Different xUDT implementations may impose different constraints.
-  \item The paper now specifies script-level semantics, but not byte-level Molecule schemas or complete CKB-VM implementations.
+  \item Different xUDT variants may impose different constraints.
+  \item The paper now specifies protocol-level validation semantics, but not every deployment-level encoding or operational procedure.
   \item Factory non-interference still requires a formal rights-dependency schema before reduced signing sets are safe.
+  \item Factory envelope families and proof-size bounds require continued measurement under realistic transition mixes.
   \item Typed reduced exits and typed factory vault changes are admissible only when asset type, amount, capacity, child or factory vault Cell shape, settlement descriptor, and factory-vault change are completely bound; broader typed-asset compatibility remains future work.
 \end{enumerate}
 
 \section{Conclusion}
 
-Morph Channel proposes a CKB-native channel architecture built around stable funding anchors, moving signed state evidence, sponsored publication, partition conservation, and local factory proofs. The design is intentionally conservative: it does not require CKB node modifications, does not assume fast finality, does not treat Merkle proofs as automatically cheaper, and does not claim that factory coordination is solved by an on-chain format.
+Morph Channel proposes a CKB-native channel architecture built around stable logical channel identity, funding-context-aware state evidence, sponsored publication, partition conservation, splice freshness, and local factory proofs. The design is intentionally conservative: it does not require CKB node modifications, does not assume fast finality, does not treat Merkle proofs as automatically cheaper, and does not claim that factory coordination is solved by an on-chain format.
 
-The value of the proposal is that it turns several ambiguous channel concerns into explicit protocol objects. Funding identity, state authority, fee responsibility, settlement descriptors, and factory transition footprints become independently auditable. This is the necessary first step before implementation benchmarks can decide whether Morph Channel should remain a research direction or mature into a production CKB channel protocol.
+The value of the proposal is that it turns several ambiguous channel concerns into explicit protocol objects. Funding identity, funding epoch, vault-set commitment, state authority, fee responsibility, settlement descriptors, and factory transition footprints become independently auditable. This is the necessary first step before deployment benchmarks can decide whether Morph Channel should remain a research direction or mature into a production CKB channel protocol.
 
 \appendix
 
 \section{Audit Matrix}
 \label{app:audit-matrix}
 
-This appendix states the construction audit target in testable form. Each row should become at least one positive test and one negative test in any prototype implementation.
+This appendix states the construction audit target in testable form. Each row should become at least one positive test and one negative test in any candidate deployment.
 
 \begin{table}[htbp]
 \centering
@@ -1070,6 +1130,7 @@ S1 & One live State Cell controls the channel pointer & State Cell type plus CKB
 S2 & Funding anchor identity is canonical & State Header plus \texttt{cell\_deps} check & referenced anchor matches committed genesis identity & descriptor-shaped fake anchor is referenced \\
 S3 & State numbers are strictly monotonic & State Cell type script & supersede $n \rightarrow n+k$ with valid signatures & publish lower or equal state number \\
 S4 & State retirement does not orphan value & State and vault authority coupling & retirement finalises value or leaves verifiable finalisation evidence & State Cell is consumed while matching vault value remains live without evidence \\
+S5 & Splice advances funding context without changing channel identity & signed funding epoch and vault-set commitment & post-splice state binds new anchor and vault set & pre-splice package controls post-splice vaults \\
 V1 & Vault value follows current state evidence & Vault lock and settlement descriptor & finalise after valid \texttt{since} delay & wallet-only spend of vault value \\
 V2 & Vault authority requires an authentic State Cell & State/Vault script identity checks & State Cell under expected scripts controls finalise & ordinary Cell carries decodable State Header bytes \\
 V3 & Descriptor evolution is signed state semantics & State signature and descriptor commitment & newer signed state commits to an admissible descriptor instance & finalise supplies an unsigned replacement descriptor \\
@@ -1084,6 +1145,7 @@ C2 & Challenge maturity is canonical relative block \texttt{since} & State/Vault
 F1 & Factory locality preserves untouched rights & proof bundle and rights-dependency graph & touched leaves prove affected rights only & shared reserve or exit right changes without authorisation \\
 F2 & Factory locality is not mint authority & local validity and conservation predicates & value right decreases or vault-delta-bound increases & Merkle-only proof increases ReserveClaim or Balance \\
 F3 & Factory vault materialisation matches signed descriptors & descriptor and delta materialisation checks & FactoryVault capacity, type, and amount match the signed descriptor & xUDT token delta is correct but the recreated FactoryVault capacity drifts \\
+F4 & Factory transition family is fixed before proof interpretation & bounded outer claim plus body commitment & admitted local proof is checked under its declared family & same proof body is reinterpreted as a weaker path \\
 \bottomrule
 \end{tabular}
 \caption{Construction audit matrix for Morph Channel.}

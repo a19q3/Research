@@ -15,6 +15,7 @@ topics:
   - channel factories
   - sponsored publication
   - partition conservation
+  - splice
   - xUDT
 artifacts:
   source_tex: paper.tex
@@ -27,9 +28,10 @@ related_codebases:
     relationship: CKB primitive and script-semantics context
 summary: >
   Morph Channel is a CKB Cell-native channel and local-factory construction.
-  It separates stable funding identity, moving signed state evidence, sponsor
-  fee responsibility, settlement descriptors, and factory-local proof objects.
-  The paper argues for bilateral plaintext witnesses, proof-based factory
-  exits, confirmation-based challenge windows, and partition conservation
-  across channel reserve, business CKB, xUDT balances, and sponsor capacity.
-
+  It separates stable logical channel identity, funding-context-aware signed
+  state evidence, sponsor fee responsibility, settlement descriptors, and
+  factory-local proof objects. The paper argues for bilateral plaintext
+  witnesses, envelope-first factory admission, proof-based factory exits,
+  splice freshness, confirmation-based challenge windows, and partition
+  conservation across channel reserve, business CKB, xUDT balances, and
+  sponsor capacity.
