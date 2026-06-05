@@ -89,38 +89,39 @@
 
 \begin{abstract}
 \noindent
-Lerna Protocol is a proposed design note and research agenda for a
-virtual-channel factory layer in Hydra-family Cardano eUTxO systems. It adapts
-ideas from Morph Channel--stable value authority, moving signed state evidence,
-sponsored publication boundaries, partitioned conservation, local factory
-proofs, touched leaves, and non-interference--without treating Cardano as if it
-were CKB. The result is not ``eltoo for Cardano'', not a replacement for Hydra,
-and not a Hydrozoa competitor. It is a compact discipline for running many
-virtual channels inside physical or virtual Hydra-family Heads.
+Lerna Protocol is a proposed design note for a virtual-channel factory
+discipline in Hydra-family Cardano eUTxO systems. It defines a Hydra-native
+method for separating stable value authority, moving signed state evidence,
+partitioned conservation, touched leaves, and local proof discipline. Lerna is
+not ``eltoo for Cardano'', not a replacement for Hydra, and not a Hydrozoa
+competitor. Its narrower claim is that a Head-like ledger can host compact
+rights and virtual channels, provided those rights remain deterministically
+unfoldable into ordinary ledger outputs.
 
 \medskip
 \noindent
-The central thesis is that Hydra already supplies the hard outer machinery:
-fast isomorphic eUTxO execution, multi-party snapshots, close, contest, and
-fanout. Interhead virtualises Hydra Heads across Heads; Lerna works one level
-below that and virtualises rights and channels inside a physical Head or inside
-an Interhead virtual Head. Hydrozoa decouples execution from custody and
-specifies deterministic outer rollout; Lerna borrows that design ethic as inner
-materialisation of compact factory rights into ordinary Head UTxOs before any
-outer fanout or rollout.
+The layer boundary is the paper's main point. Hydra virtualises Cardano
+execution inside one Head. Interhead virtualises Heads across Heads. Lerna
+virtualises rights and channels inside a physical Head, an Interhead virtual
+Head, or a sufficiently Head-like ledger. Hydrozoa decouples execution from
+custody and specifies deterministic outer rollout; Lerna borrows that design
+ethic as inner materialisation of compact factory rights into Head UTxOs before
+outer fanout or rollout. Compactness is therefore not free compression. It is a
+debt that must be repaid before the outer settlement mechanism is asked to
+finalise concrete outputs.
 
 \medskip
 \noindent
-Lerna is deliberately cautious. The concrete V0 target in this note is
-ADA-only and remains entirely inside an open Hydra Head. It requires unresolved
-virtual-channel claims to be checkpointed or materialised into a Hydra snapshot
-before contestation expires. If that liveness assumption is unacceptable, the
-design must move to a future V1 claim-UTxO mode whose validator feasibility is
-not claimed here. The research hypothesis is threefold: an inner factory-rights
-discipline can reduce Head-internal UTxO churn; deterministic inner
-materialisation should be treated as a safety condition before outer fanout or
-rollout; and release receipts are the minimum anti-replay machinery needed once
-compact rights become ordinary Head outputs.
+The concrete V0 target is deliberately modest: ADA-only, Head-local, and
+dependent on existing Hydra close, contest, and fanout semantics. V0 safety
+requires at least one authorised Head participant, operator, or delegated
+watcher to checkpoint or materialise the latest relevant Lerna state into a
+Hydra snapshot before contestation expires. If that assumption is unacceptable,
+the application must move to a future V1 claim-UTxO or another claim design;
+this note does not claim V1 feasibility. The originality claim is limited to
+three prototype obligations: C1, an inner factory-rights discipline; C2,
+deterministic inner materialisation before outer fanout or rollout; and C3,
+factory-local non-interference plus release receipts.
 \end{abstract}
 
 \vfill
@@ -139,14 +140,13 @@ factories, native assets, Aiken, Plutus, state channels, non-interference.
 
 Hydra Head is the first practical member of the Hydra family. It lets a fixed
 set of participants run Cardano-like transactions off-chain with low latency,
-confirm state in signed snapshots, and return the final UTxO set to L1 through
-close, contest, and fanout. Current Hydra documentation and implementation
-directions also emphasise deposits into an open Head and decommit-style exits,
-with continuing work on simplifying the lifecycle and reducing the opening
-surface. This makes Hydra a natural substrate for application-specific L2
-protocols, but it also exposes an economic and operational question: must every
+confirm state in signed snapshots, and return the resolved UTxO set to L1
+through close, contest, and fanout. Its implementation path also includes
+incremental deposits, decommit-style exits, and partial fanout work. These
+features make Hydra a natural substrate for application-specific L2 protocols,
+but they expose a precise economic and operational question: must every
 bilateral channel, balance, rebalance, and local exit become a Head-visible
-UTxO?
+UTxO while the application is still in its fast path?
 
 Lerna answers no. It proposes a Head-local factory state that can hold many
 virtual-channel rights compactly while retaining deterministic paths back to
@@ -158,25 +158,19 @@ UTxO during normal operation~\cite{hydra-pay}.
 
 The positioning is deliberately narrow: Hydra virtualises Cardano execution
 inside one Head; Interhead virtualises Heads across Heads; Lerna virtualises
-rights and channels inside a Head-like ledger. Compactness is not free
-compression. It creates a materialisation debt: before outer settlement, the
-compact rights must be unfolded into Cardano-valid outputs or deliberately
+rights and channels inside a Head-like ledger. Compactness is useful only if it
+has a repayment rule. Before outer settlement, compact rights must be unfolded
+into Cardano-valid outputs, reabsorbed under fresh agreement, or deliberately
 released.
 
-The source inspiration is Morph Channel, a CKB design that separates stable
-funding, moving state evidence, sponsor-owned publication, partition
-conservation, and factory-local proofs~\cite{morph}. A direct port would be a
-category error. CKB Cells, type scripts, lock scripts, \texttt{since}, and xUDT
-do not map one-to-one to Cardano. Cardano has eUTxO, native assets, Plutus and
-Aiken validators, inline datums, reference inputs, reference scripts, min-ADA,
-transaction validity intervals, and Hydra's own Head state machine. Lerna
-therefore recasts Morph's abstractions as Hydra-native objects.
-
-Because Morph Channel is a local research draft by the same author, it is not
-used here as an externally verifiable security foundation. It is treated as a
-design stimulus. Lerna's publishable claims must stand on Cardano/Hydra
-semantics, formal V0 objects, and prototype evidence rather than on authority
-borrowed from an unpublished Morph draft.
+This work is motivated by the need for a Cardano-native virtual-channel factory
+that keeps stable funding, moving state evidence, operator publication duties,
+partitioned conservation, and factory-local proofs explicit inside the Hydra
+execution model. Cardano provides eUTxO, native assets, Plutus and Aiken
+validators, inline datums, reference inputs, reference scripts, min-ADA,
+transaction validity intervals, and Hydra's own Head state machine. Lerna's
+reviewable claims therefore stand on Cardano/Hydra semantics, formal V0 objects,
+and prototype evidence.
 
 The practical problem is not only throughput. It is exit discipline. A virtual
 channel factory is useful only if the participants can tell, at every point,
@@ -188,9 +182,9 @@ but only if a real validator design can enforce latest-state settlement and
 non-interference on L1.
 
 \paragraph{Research contributions and claim scope.}
-This paper makes three Cardano-specific design contributions. They are
-presented as protocol obligations and prototype targets, not as finished
-cryptographic theorems.
+This paper makes three Cardano-specific design contributions. They are stated
+as protocol obligations and prototype targets, not as finished cryptographic
+theorems.
 
 \begin{description}[leftmargin=2.4cm,style=nextline]
 \item[C1. Inner factory rights discipline.]
@@ -262,9 +256,9 @@ materialises into valid eUTxO outputs.
 Thirdly, the Cardano community already has Hydra-family research directions.
 Interhead Hydra studies composition across Heads. Hydrozoa explores a flexible
 multi-party state-channel design that decouples execution from custody and has
-a rule-based fallback regime. Lerna should be positioned as an inner
-virtual-channel factory layer that can live inside these systems, not as a
-replacement narrative.
+a rule-based fallback regime. Lerna is positioned as an inner virtual-channel
+factory layer that can live inside these systems. It is not a replacement
+narrative for any of them.
 
 \begin{remark}[Positioning boundary]
 Hydra provides the outer L2 state channel and snapshot/fanout machinery.
@@ -301,10 +295,10 @@ compact rights later undergo deterministic materialisation into valid Head
 UTxOs before outer settlement.
 
 The closing consequence for Lerna is precise: Hydra is the outer settlement and
-fanout substrate, and Lerna V0 does not modify that substrate. It behaves as a
-Head-local ADA application whose compact state is unfolded before fanout. Later
-profiles that use native assets, inline datums, or mint/burn boundaries must
-prove compatibility with Hydra finalisation separately.
+fanout substrate, and Lerna V0 does not modify that substrate. Lerna behaves as
+a Head-local ADA application whose compact state is unfolded before fanout.
+Later profiles that use native assets, large inline datums, or mint/burn
+boundaries must prove compatibility with Hydra finalisation separately.
 
 \subsection{Interhead Hydra}
 
@@ -321,7 +315,8 @@ Head across Heads. Lerna virtualises rights and channels inside a physical Head
 or inside an Interhead virtual Head. Interhead's main hard problem is
 synchronising partial state machines and collateralising a virtual Head across
 intermediaries. Lerna's main hard problem is proving factory-local
-non-interference and deterministic materialisation before fanout.
+non-interference and completing deterministic materialisation before the
+containing Head-like ledger settles.
 
 \subsection{Hydrozoa}
 
@@ -338,13 +333,13 @@ which state version is being settled.
 
 Lerna should use Hydrozoa cautiously. The local repository notes that Hydrozoa
 is pre-alpha and that public specifications are in flux~\cite{hydrozoa}. Even
-so, three architectural lessons are stable enough to use: execution and custody
-should be separated; deposits and withdrawals need explicit deadlines and
-margins; and large output sets need deterministic rollout rather than ad hoc
-transaction construction. The closing consequence is not competition: Hydrozoa
-studies outer rollout and execution-custody separation, while Lerna borrows
-that design ethic as inner rollout and materialisation of compact factory
-rights.
+so, three architectural lessons are stable enough to use as design constraints:
+execution and custody should be separated; deposits and withdrawals need
+explicit deadlines and margins; and large output sets need deterministic
+rollout rather than ad hoc transaction construction. The closing consequence is
+not competition: Hydrozoa studies outer rollout and execution-custody
+separation, while Lerna borrows that design ethic as inner rollout and
+materialisation of compact factory rights.
 
 \subsection{Eltoo, Channel Factories, and Perun}
 
@@ -359,7 +354,7 @@ the broader adjudication pattern: off-chain state becomes enforceable through a
 dispute or adjudication mechanism~\cite{perun}. The closing boundary is that
 these works provide intellectual lineage only. Lerna does not take
 Bitcoin-specific assumptions, and it reserves heavyweight Cardano adjudication
-for the future V1 claim-UTxO mode.
+for the future V1 claim-UTxO mode, whose feasibility is not claimed here.
 
 \section{System Model}
 
@@ -511,8 +506,10 @@ If a stale Hydra snapshot is used to close the Head, at least one honest
 watcher can observe the stale close, construct or obtain a newer Hydra snapshot
 containing the latest Lerna checkpoint or materialisation, and contest before
 the Hydra contestation deadline. The watcher may be a Head participant, an
-operator with delegated authority, or an application-specific watching service,
-but V0 does not give a non-Head virtual participant an independent L1 claim.
+operator who is also a Head participant, a delegated watcher coordinating with
+a Head participant, or an application-specific watching service with an
+explicit submission path. V0 does not give a non-Head virtual participant an
+independent L1 claim.
 \end{assumption}
 
 \paragraph{Who can act?}
@@ -521,8 +518,11 @@ authorised at the Head boundary. In a minimal deployment this actor is a Head
 participant. In an application deployment it may be an operator who is also a
 Head participant, a delegated watcher coordinating with a Head participant, or
 an application-specific watching service with a clearly specified submission
-path. V0 does not specify a general delegation protocol for non-Head virtual
-participants; it requires the deployment to make that delegation explicit.
+path. Observation alone is not enough: the deployment must identify the key,
+node, or service that can actually cause the newer snapshot or materialisation
+transaction to be proposed and signed. V0 does not specify a general delegation
+protocol for non-Head virtual participants; it requires the deployment to make
+that delegation explicit.
 
 \begin{assumption}[Materialisation capacity]
 The materialisation workload induced by the current factory state fits inside
@@ -617,6 +617,17 @@ need only know that the containing ledger has a deterministic escalation path
 and a final UTxO-set semantics. Neither layer should depend on informal
 operator promises about how many outputs will be generated at settlement time.
 
+This also explains why a Lerna channel should not be described as a smaller
+Interhead. Interhead preserves a Head-like enforceable state across two
+containers and, under dispute, can move that state into the ordinary Hydra
+state space. Lerna preserves rights inside one such container. Its escalation
+unit is not a virtual Head conversion; it is a deterministic materialisation
+batch, a receipt release, or a shutdown state that the container can include in
+its next authenticated state. The difference is small in wording but large in
+security accounting: Interhead reasons about Head membership, intermediary
+collateral, and conversion phases; Lerna reasons about right identifiers,
+touched dependencies, min-ADA reserves, and output descriptors.
+
 \begin{invariant}[Head-like ledger containment]
 A physical Head, an Interhead virtual Head, or a Hydrozoa-style ledger is a
 valid container for Lerna only if it gives Lerna three explicit interfaces:
@@ -671,6 +682,14 @@ that the outer ledger already knows how to settle. This is why Lerna is
 Hydra-native rather than Hydrozoa-competitive: it uses the same conservative
 exit ethic at a lower layer.
 
+The analogy must stop there. Hydrozoa's rule-based regime is an outer custody
+fallback: it moves control of the treasury to scripts that can resolve a
+compatible L2 block and roll withdrawals out. Lerna V0 has no such outer
+fallback of its own. Its compact factory datum is not a treasury and not a
+standalone custody object. It is only safe while the containing ledger can still
+include the materialisation transaction that turns compact rights into the
+ordinary outputs that Hydra or Hydrozoa already knows how to settle.
+
 \begin{proposition}[Inner-before-outer rollout]
 For V0, a compact Lerna right may remain compact only while the containing Head
 or Head-like ledger remains able to include a deterministic materialisation
@@ -702,6 +721,11 @@ are bounded by configured and ledger limits; unburned native tokens minted
 inside a Head can prevent finalisation; partial fanout can leave problematic
 token-carrying outputs stuck; and an intrinsically oversized UTxO cannot be
 fanned out merely by splitting the fanout transaction~\cite{hydra-known}.
+The current documentation's warning that roughly dozens of Head UTxOs may
+already create fanout pressure should be read as an engineering signal rather
+than a hard protocol constant: the exact number depends on ledger parameters,
+output shape, scripts, datums, and implementation changes, but the direction of
+pressure is stable.
 
 Compact factory state is Lerna's answer to fanout UTxO pressure. During normal
 operation, a factory may represent many virtual channels through a small number
@@ -719,6 +743,12 @@ unfold before the contestation deadline is unsafe even if every virtual-channel
 state is correctly signed. The protocol must measure output count, datum size,
 asset-bundle size, min-ADA reserve, and watcher response time as part of the
 factory policy.
+
+Compactness therefore has a precise meaning. It is not a promise that the final
+Head state will be small. It is a promise that the fast path can keep temporary
+rights compact while the shutdown path remains capable of producing the
+ordinary Head UTxOs that Hydra requires. If that second promise is not measured
+and enforced, Lerna merely hides fanout work until the worst moment.
 
 \begin{invariant}[Fanout debt]
 Every compact active right carries a fanout debt equal to the deterministic
@@ -785,7 +815,9 @@ deterministic rollout rather than ad hoc construction under stress.
 Lerna does not change Hydra's Head lifecycle, participation-token logic, close,
 contest, or fanout semantics. It takes Hydra as the outer substrate and accepts
 its practical constraints, including fanout UTxO pressure and native-token
-finalisation hazards.
+finalisation hazards. It also does not assume that partial fanout, decommit
+workflows, or future Hydra engineering improvements remove the need for
+Lerna's own deterministic materialisation plan.
 
 \item[From eltoo.]
 Lerna does not take Bitcoin transaction replacement assumptions, sighash
@@ -793,11 +825,6 @@ templates, or the slogan that latest state alone defines settlement. It takes
 only the non-punitive intuition that newer valid state should supersede stale
 evidence when the substrate can enforce that ordering.
 
-\item[From Morph Channel.]
-Lerna does not port CKB Cells, lock scripts, type scripts, \texttt{since}, or
-xUDT accounting. It takes stable funding, moving state evidence, partitioned
-conservation, and local proof discipline, then recasts them as Cardano eUTxO
-and Hydra-native objects.
 \end{description}
 
 \section{Formal Objects}
@@ -1534,11 +1561,10 @@ Release receipts & Rights already materialised or closed & Double claim through 
 \bottomrule
 \end{longtable}
 
-This is the Cardano counterpart to Morph's partition conservation. The mapping
-is not exact because Cardano fees, min-ADA, and native-asset bundles differ
-from CKB occupied capacity and xUDT cells. The safety idea is the same:
-publication or operation costs must not invisibly leak from participant
-balances.
+Lerna's partitioned-conservation rule is a native Cardano accounting discipline:
+Cardano fees, min-ADA, native-asset bundles, operator budgets, and participant
+balances must be tracked separately. Publication or operation costs must not
+invisibly leak from participant balances.
 
 \section{Deterministic Materialisation}
 
@@ -1551,14 +1577,18 @@ fanout.
 
 Materialisation must be measurable. A V0 prototype should report, for a chosen
 Hydra contestation period, the number of rights unfolded, output count, datum
-size, min-ADA footprint, native-asset bundle size, transaction count, and
-observed time-to-materialise. Without those measurements, compactness is only a
+size, min-ADA footprint, native-asset bundle size, transaction count, witness
+size estimate, snapshot-confirmation latency, and observed
+time-to-materialise. Without those measurements, compactness is only a
 presentation choice, not a safety argument.
 
 This measurement is not a benchmark afterthought. It is part of the admission
 rule for opening new compact rights. A deployment that cannot estimate the
 remaining materialisation workload should refuse new virtual-channel opens and
-enter shutdown preparation before the Head is under close pressure.
+enter shutdown preparation before the Head is under close pressure. In
+particular, a factory that admits more compact rights than it can unfold within
+its chosen shutdown envelope is unsafe even when all relevant signatures are
+valid.
 
 \begin{definition}[Materialisation equivalence]
 A materialised Head output is equivalent to a compact Lerna right if its
@@ -1658,10 +1688,11 @@ where \(N_{\mathsf{rights}}\) is the number of rights to unfold,
 \(S_{\mathsf{assets}}\) is the native-asset bundle footprint,
 \(T_{\mathsf{head}}\) is the Head contestation period,
 \(T_{\mathsf{watch}}\) is watcher response time, and \(B_{\mathsf{tx}}\) is the
-transaction budget profile. This paper does not fix \(f\); it requires a
-deployment to measure it. A factory that admits more compact rights than it can
-unfold before shutdown is unsafe even if every relevant signature is valid,
-because the outer Head ultimately settles a concrete UTxO set.
+transaction budget profile. This paper does not know \(f\) in advance and does
+not pretend that one symbolic function settles the engineering problem. It
+requires each deployment to measure a conservative bound for its own ledger
+profile. The safety question is whether the current compact state can be
+unfolded with margin, not whether its signatures are well formed in isolation.
 
 \subsection{V1 Claim-UTxO Discipline}
 
@@ -1924,7 +1955,9 @@ The smallest useful demo is a local Hydra Head with one compact factory UTxO,
 two ADA-only virtual channels, one local exit, one release receipt, deterministic
 materialisation before fanout, and a stale snapshot contest scenario. Native
 assets, dynamic membership, and V1 claim UTxOs should remain outside the first
-demo.
+demo. The two-channel case should be chosen so that one right materialises while
+at least one other right remains compact, since that is the smallest setting
+that exercises both release receipts and non-interference boundaries.
 
 \begin{enumerate}[label=\textbf{H\arabic*.},leftmargin=2.6em]
 \item \textbf{Open or join a Hydra Head.} The Head participant set, Head id,
@@ -1938,7 +1971,8 @@ already respect Cardano value, datum, reference-script, and min-ADA
 constraints.
 
 \item \textbf{Create the factory UTxO inside the Head.} A Head-local
-transaction creates the compact Lerna factory UTxO. Its datum binds
+transaction creates the compact Lerna factory UTxO, or an equivalent
+validator-compatible state object for the prototype environment. Its datum binds
 \(\mathsf{factoryId}\), \(\mathsf{factoryEpoch}\), the Head id, participant
 registry root, asset registry root, reserve policy, and settlement descriptor.
 
@@ -1956,10 +1990,11 @@ pressure requires it.
 state, access manifest, touched leaves, required signatures, and either a
 non-interference proof or full factory authorisation.
 
-\item \textbf{Materialise Head UTxOs.} The factory validator accepts a
-Head-local transaction that consumes the compact factory UTxO, creates ordinary
-Head UTxOs for the exited rights, writes release receipts into the new compact
-factory state, and preserves per-asset conservation.
+\item \textbf{Materialise Head UTxOs.} The Head-local factory validator, or
+validator-compatible transaction rule, accepts a transaction that consumes the
+compact factory UTxO, creates ordinary Head UTxOs for the exited rights, writes
+release receipts into the new compact factory state, and preserves ADA
+conservation in the first profile.
 
 \item \textbf{Prepare for shutdown.} If the Head is expected to close, the
 factory stops accepting new compact rights once the materialisation threshold is
@@ -1991,51 +2026,30 @@ test-only assertions.
 \item access-manifest hash and transition-family binding;
 \item touched-root recomputation;
 \item release receipt creation and consumption;
-\item ADA-only conservation in the first prototype.
+\item ADA-only conservation in the first prototype;
+\item rejection of non-ADA values under \(\mathsf{V0\mbox{-}ADA}\).
 \end{itemize}
 
 \paragraph{Off-chain construction enforced.}
 \begin{itemize}[leftmargin=2.2em]
 \item selection of the canonical materialisation prefix;
 \item min-ADA sufficiency of all materialised outputs;
-\item transaction-size and execution-budget preflight;
+\item transaction-size, datum-size, witness-size, and execution-budget preflight;
 \item watcher/operator routing to an authorised Head participant;
 \item operator-budget separation from participant balances.
 \end{itemize}
 
 \paragraph{Test-only until benchmarked.}
 \begin{itemize}[leftmargin=2.2em]
-\item non-interference proof or full-authorisation fallback;
+\item reduced-signature non-interference proof; the first prototype may use
+full-authorisation fallback instead;
 \item native-asset conservation by policy ID and asset name for extension
 profiles;
 \item large datum rejection;
 \item stale snapshot contest with a newer Lerna checkpoint;
-\item measured time-to-materialise under the chosen contestation period.
+\item measured time-to-materialise under the chosen contestation period;
+\item release-receipt replay attempts across factory epochs and batch indices.
 \end{itemize}
-
-\section{Morph-to-Lerna Mapping Table}
-
-\begin{longtable}{L{0.27\textwidth}L{0.32\textwidth}L{0.30\textwidth}}
-\toprule
-\textbf{Morph / CKB concept} & \textbf{Lerna / Cardano-Hydra equivalent} & \textbf{Mismatch or caution}\\
-\midrule
-\endfirsthead
-\toprule
-\textbf{Morph / CKB concept} & \textbf{Lerna / Cardano-Hydra equivalent} & \textbf{Mismatch or caution}\\
-\midrule
-\endhead
-Stable funding bundle / vault Cells & Cardano UTxOs deposited into a Hydra Head, or compact factory UTxO inside the Head & Head is the stable outer value container in V0\\
-Moving State Cell & Lerna \texttt{FactoryState} plus signed \texttt{LatestStateHeader} & State pointer is Head-local, not a global L1 Cell\\
-\texttt{PUBLISH} & Checkpoint Lerna state into an open Head snapshot & No separate V0 L1 publication transaction\\
-\texttt{SUPERSEDE} & Newer Lerna state plus newer Hydra snapshot contest & Must respect Hydra close/contest\\
-\texttt{FINALIZE} & Materialise rights inside Head, then Hydra fanout & Split between Lerna materialisation and Hydra finality\\
-CKB \texttt{since} & Hydra contestation deadline and watcher response profile & No direct primitive mapping\\
-Sponsor partition & Operator fee and materialisation budget & Cardano fees and min-ADA differ from CKB capacity\\
-xUDT conservation & Native-asset conservation by policy ID and asset name & Metadata is not asset identity\\
-Factory proof mode & Access manifest, touched leaves, dependency graph, non-interference proof & Merkle proof alone is insufficient\\
-Settlement descriptor & Cardano output materialisation descriptor & Must include min-ADA, datum, reference script expectations\\
-\bottomrule
-\end{longtable}
 
 \section{Open Questions}
 
@@ -2080,6 +2094,7 @@ Cardano Scaling.
 \bibitem{hydra-known}
 Cardano Scaling.
 \newblock Hydra known issues and limitations.
+\newblock Version 2.0.0 documentation, consulted 5 June 2026.
 \newblock \url{https://hydra.family/head-protocol/docs/known-issues}.
 
 \bibitem{hydra-pay}
@@ -2089,7 +2104,8 @@ Obsidian Systems.
 
 \bibitem{hydrozoa}
 Cardano Hydrozoa.
-\newblock Hydrozoa repository and protocol materials.
+\newblock Hydrozoa repository and protocol materials; local repository marks
+the project as pre-alpha and under active development.
 \newblock \url{https://github.com/cardano-hydrozoa/hydrozoa}.
 
 \bibitem{hydrozoa-spec}
@@ -2128,12 +2144,6 @@ C. Burchert, C. Decker, and R. Wattenhofer.
 S. Dziembowski, S. Faust, and K. Hostakova.
 \newblock General State Channel Networks.
 \newblock ACM CCS 2018.
-
-\bibitem{morph}
-A. Zhang.
-\newblock Morph Channel: A Cell-Native Protocol Construction for Sponsored
-State Evidence and Local Channel Factories on CKB.
-\newblock Local research draft, May 2026.
 
 \end{thebibliography}
 
