@@ -1,0 +1,17 @@
+title: "Lerna Protocol: Design Note for Hydra-native Virtual Channel Factories on Cardano eUTxO"
+short_title: "Lerna Protocol"
+date: "2026-06-05"
+type: "technical design note"
+status: "revised design note; ADA-only V0 scope"
+summary: >
+  A Hydra-native adaptation of Morph Channel ideas into a virtual-channel
+  factory design note for Cardano eUTxO systems. The revised scope is an
+  ADA-only V0 Head-local factory with explicit threat model, state machine,
+  release-receipt anti-replay rule, conservation equations, deterministic
+  materialisation, and failure scenarios. Native assets and L1 claim UTxOs are
+  extension/future-work tracks.
+claim_scope:
+  v0: "ADA-only, Head-local, watcher-assisted; no independent L1 claim for non-Head virtual participants"
+  reduced_signature_non_interference: "proof obligation only unless ValidNonInterference is implemented and benchmarked"
+  native_assets: "future multi-asset profile"
+  v1_claim_utxo: "future research"
