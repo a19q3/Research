@@ -1,11 +1,17 @@
 # Lerna Implementation Alignment
 
-This note records why the paper was updated on 6 June 2026.
+This note records why the paper was updated on 8 June 2026.
 
 ## Decision
 
-The paper now follows the implementation in `a19q3/Lerna` at commit
-`66ff116`. The production target is the claim-UTxO settlement discipline:
+The paper now presents Lerna as one factory-rights protocol with two settlement
+profiles, not as a software release sequence:
+
+- Head-local factory settlement.
+- Claim-materialisation settlement.
+
+The implementation in `a19q3/Lerna` at commit `66ff116` provides executable
+evidence for the claim-materialisation profile:
 
 - Aiken claim validator.
 - Deterministic off-chain model.
@@ -13,14 +19,28 @@ The paper now follows the implementation in `a19q3/Lerna` at commit
 - Reduced-signature, native-asset, and multi-batch profile matrix.
 - Executable security-theorem gate.
 
-Historical Head-local acceptance notes were removed from this paper package
-because they describe a different target and make the current claim ambiguous.
+The Head-local profile remains part of the theory, but it is intentionally
+bounded. It is safe only when at least one authorised Head participant,
+operator, or watcher can checkpoint or materialise the latest Lerna state into
+a Hydra snapshot before contestation expires. If that assumption is too strong,
+the paper directs the design to claim-materialisation.
 
 ## Paper Surface
 
 The paper should describe:
 
-- claim datum and redeemer fields;
+- Lerna below Interhead: virtual rights inside physical or virtual Heads;
+- Lerna and Hydrozoa: deterministic inner materialisation before outer rollout;
+- why compact factory state matters for Hydra fanout pressure and finalisation
+  hazards;
+- compatibility with physical Heads, Interhead virtual Heads, and
+  Hydrozoa-style ledgers;
+- what Lerna deliberately does not take from Hydra, Interhead, Hydrozoa, eltoo,
+  factories, and Perun;
+- inner factory rights discipline;
+- deterministic inner materialisation before outer fanout or rollout;
+- factory-local non-interference plus release receipts;
+- claim datum and redeemer fields for the implementation-backed profile;
 - latest-state domain, network, Head, factory, and epoch binding;
 - exact full authorisation or reduced-signature non-interference;
 - exact lovelace and native-asset conservation;

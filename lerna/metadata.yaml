@@ -1,16 +1,21 @@
-title: "Lerna Protocol: Claim-UTxO Settlement for Hydra/Cardano eUTxO"
+title: "Lerna Protocol: Factory Rights Settlement Profiles for Hydra/Cardano eUTxO"
 short_title: "Lerna Protocol"
-date: "2026-06-06"
+date: "2026-06-08"
 type: "implementation-backed technical paper"
-status: "aligned to claim-UTxO implementation at commit 66ff116"
+status: "profile-based paper with claim-materialisation implementation evidence at commit 66ff116"
 summary: >
-  An implementation-backed claim-UTxO settlement discipline for Hydra/Cardano
-  eUTxO systems. The paper follows the current Aiken validator, deterministic
-  model, real devnet evidence, profile matrix, local file-hash checks, and
-  executable security-theorem gate.
-claim_scope:
-  claim_utxo: "script-controlled claim UTxO creation and settlement"
-  reduced_signature_non_interference: "implemented profile with real devnet evidence"
-  native_assets: "implemented exact-conservation profile with real devnet evidence"
-  multi_batch: "implemented continuation profile with real devnet evidence"
+  A Hydra-native factory-rights settlement discipline for compact rights inside
+  physical Hydra Heads or Interhead virtual Heads. The paper presents two
+  settlement profiles: a Head-local factory profile with an explicit
+  checkpoint/materialisation liveness assumption, and a claim-materialisation
+  profile backed by the current Aiken validator, deterministic model, real
+  devnet evidence, profile matrix, local file-hash checks, and executable
+  security-theorem gate.
+settlement_profiles:
+  head_local_factory: "compact Head-local rights state, safe only with authorised checkpoint or materialisation before Hydra contestation expires"
+  claim_materialisation: "script-controlled claim UTxO creation, settlement, release receipts, continuation, and final zero-claim acceptance"
+implementation_evidence:
+  reduced_signature_non_interference: "claim-materialisation profile evidence with real devnet evidence"
+  native_assets: "claim-materialisation exact-conservation profile with real devnet evidence"
+  multi_batch: "claim-materialisation continuation profile with real devnet evidence"
   theorem_gate: "npm run verify:security-theorem"
