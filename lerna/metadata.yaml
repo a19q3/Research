@@ -6,15 +6,15 @@ status: "profile-based paper with claim-materialisation implementation evidence 
 summary: >
   A Hydra-native factory-rights settlement discipline for compact rights inside
   physical Hydra Heads or Interhead virtual Heads. The paper presents two
-  settlement profiles: a Head-local factory profile with an explicit
-  checkpoint/materialisation liveness assumption, and a claim-materialisation
-  profile backed by the current Aiken validator, deterministic model, real
-  devnet evidence, profile matrix, local file-hash checks, and executable
-  security-theorem gate.
+  settlement profiles: a Head-local factory profile with explicit signed
+  snapshot availability assumptions, and a claim-materialisation profile backed
+  by the current Aiken validator, deterministic model, real devnet evidence,
+  profile matrix, local file-hash checks, and executable security-theorem gate.
 settlement_profiles:
-  head_local_factory: "compact Head-local rights state, safe only with authorised checkpoint or materialisation before Hydra contestation expires"
+  head_local_factory: "compact Head-local rights state, safe only when the latest Lerna state is in a signed Hydra snapshot before close or available as already-signed newer contest evidence"
   claim_materialisation: "script-controlled claim UTxO creation, settlement, release receipts, continuation, and final zero-claim acceptance"
 implementation_evidence:
+  reproducibility: "fresh local reproduction requires regenerating or path-normalising Hydra/Cardano artifact references for the current checkout"
   reduced_signature_non_interference: "claim-materialisation profile evidence with real devnet evidence"
   native_assets: "claim-materialisation exact-conservation profile with real devnet evidence"
   multi_batch: "claim-materialisation continuation profile with real devnet evidence"

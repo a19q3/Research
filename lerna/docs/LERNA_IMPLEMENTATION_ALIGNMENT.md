@@ -19,11 +19,16 @@ evidence for the claim-materialisation profile:
 - Reduced-signature, native-asset, and multi-batch profile matrix.
 - Executable security-theorem gate.
 
+Fresh local reproduction requires regenerating or path-normalising the recorded
+Hydra/Cardano artifact references for the current checkout. Historical JSON
+reports are run records, not substitutes for a clean local theorem pass.
+
 The Head-local profile remains part of the theory, but it is intentionally
 bounded. It is safe only when at least one authorised Head participant,
-operator, or watcher can checkpoint or materialise the latest Lerna state into
-a Hydra snapshot before contestation expires. If that assumption is too strong,
-the paper directs the design to claim-materialisation.
+operator, or watcher can ensure the latest Lerna state is in a signed Hydra
+snapshot before close, or can contest a stale close with an already-signed newer
+snapshot. If that assumption is too strong, the paper directs the design to
+claim-materialisation.
 
 ## Paper Surface
 
@@ -33,6 +38,7 @@ The paper should describe:
 - Lerna and Hydrozoa: deterministic inner materialisation before outer rollout;
 - why compact factory state matters for Hydra fanout pressure and finalisation
   hazards;
+- Head-local factory state, snapshot embedding, and conditional release safety;
 - compatibility with physical Heads, Interhead virtual Heads, and
   Hydrozoa-style ledgers;
 - what Lerna deliberately does not take from Hydra, Interhead, Hydrozoa, eltoo,
@@ -62,4 +68,5 @@ npm run check:profiles
 
 The paper remains conditional on Hydra contestability, Cardano ledger
 validation, proof availability, watcher/operator liveness, and bounded
-materialisation capacity.
+materialisation capacity. The Head-local profile additionally depends on signed
+snapshot availability for the latest Lerna state.
