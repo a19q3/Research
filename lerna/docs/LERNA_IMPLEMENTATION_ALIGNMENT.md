@@ -1,38 +1,30 @@
-# Lerna Implementation Alignment
+# Lerna Thesis Boundary
 
-This note records why the paper was updated on 8 June 2026.
+This note records the intended thesis positioning.
 
 ## Decision
 
-The paper now presents Lerna as one factory-rights protocol with two settlement
-profiles, not as a software release sequence:
+The paper presents Lerna as one factory-rights protocol with two settlement
+safety envelopes:
 
 - Head-local factory settlement.
 - Claim-materialisation settlement.
 
-The implementation in `a19q3/Lerna` at commit `66ff116` provides executable
-evidence for the claim-materialisation profile:
+They are two ways of placing the same compact factory-rights state inside a
+host ledger environment.
+The Head-local profile is lighter, but it is safe only when the latest Lerna
+state is available in signed Head evidence before close or can be used for
+contest. The claim-materialisation profile is heavier, but it makes repayment of
+compact rights explicit at the ledger boundary.
 
-- Aiken claim validator.
-- Deterministic off-chain model.
-- Real Hydra/Cardano devnet evidence.
-- Reduced-signature, native-asset, and multi-batch profile matrix.
-- Executable security-theorem gate.
-
-Fresh local reproduction requires regenerating or path-normalising the recorded
-Hydra/Cardano artifact references for the current checkout. Historical JSON
-reports are run records, not substitutes for a clean local theorem pass.
-
-The Head-local profile remains part of the theory, but it is intentionally
-bounded. It is safe only when at least one authorised Head participant,
-operator, or watcher can ensure the latest Lerna state is in a signed Hydra
-snapshot before close, or can contest a stale close with an already-signed newer
-snapshot. If that assumption is too strong, the paper directs the design to
-claim-materialisation.
+Instantiation evidence may be used as corroborating evidence for the
+claim-materialisation profile. The thesis claim should remain generic: ledger
+objects, transition invariants, acceptance obligations, and deployment
+assumptions.
 
 ## Paper Surface
 
-The paper should describe:
+The paper should emphasise:
 
 - Lerna below Interhead: virtual rights inside physical or virtual Heads;
 - Lerna and Hydrozoa: deterministic inner materialisation before outer rollout;
@@ -46,7 +38,8 @@ The paper should describe:
 - inner factory rights discipline;
 - deterministic inner materialisation before outer fanout or rollout;
 - factory-local non-interference plus release receipts;
-- claim datum and redeemer fields for the implementation-backed profile;
+- host-interface obligations, no-stranding, and balance preservation;
+- claim state and transition fields at a protocol level;
 - latest-state domain, network, Head, factory, and epoch binding;
 - exact full authorisation or reduced-signature non-interference;
 - exact lovelace and native-asset conservation;
@@ -54,19 +47,12 @@ The paper should describe:
 - partial-batch continuation and final zero-claim acceptance;
 - materialisation admission bounds;
 - proof availability;
-- local ledger evidence hash binding;
-- theorem obligations checked by `npm run verify:security-theorem`.
+- evidence binding between ledger observations and accepted transitions.
 
-## Accepted Commands
-
-```sh
-npm test
-npm run verify:security-theorem
-npm run check:devnet
-npm run check:profiles
-```
+## Boundary
 
 The paper remains conditional on Hydra contestability, Cardano ledger
 validation, proof availability, watcher/operator liveness, and bounded
 materialisation capacity. The Head-local profile additionally depends on signed
-snapshot availability for the latest Lerna state.
+snapshot availability for the latest Lerna state. Instantiation evidence should
+support these claims without becoming the narrative centre of the thesis.

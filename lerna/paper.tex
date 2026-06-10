@@ -13,6 +13,7 @@
 \usepackage{xcolor}
 \usepackage{graphicx}
 \usepackage{hyperref}
+\usepackage{cleveref}
 \usepackage{listings}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,calc,fit,shapes.geometric}
@@ -64,18 +65,19 @@
   lernaGreenBox/.style={lernaBox, fill=LernaMint, draw=LernaGreen!75!black},
   lernaAmberBox/.style={lernaBox, fill=LernaGold, draw=LernaAmber!80!black},
   lernaRedBox/.style={lernaBox, fill=LernaRed!8, draw=LernaRed!75!black},
-  lernaLine/.style={-{Latex[length=3mm,width=2mm]}, line width=0.8pt, draw=LernaInk!75},
-  lernaDashed/.style={lernaLine, dashed, draw=LernaGrey},
   lernaTitle/.style={font=\sffamily\bfseries\small, text=LernaInk},
   lernaTiny/.style={font=\sffamily\scriptsize, align=center}
 }
 
-\newtheorem{definition}{Definition}
-\newtheorem{assumption}{Assumption}
-\newtheorem{invariant}{Invariant}
-\newtheorem{lemma}{Lemma}
-\newtheorem{theorem}{Theorem}
-\newtheorem{remark}{Remark}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+\newtheorem{assumption}[definition]{Assumption}
+\newtheorem{invariant}[definition]{Invariant}
+\theoremstyle{plain}
+\newtheorem{lemma}[definition]{Lemma}
+\newtheorem{theorem}[definition]{Theorem}
+\theoremstyle{remark}
+\newtheorem{remark}[definition]{Remark}
 
 \newcommand{\Lerna}{\mathsf{Lerna}}
 \newcommand{\Claim}{\mathsf{Claim}}
@@ -120,33 +122,34 @@ with two settlement profiles. The Head-local factory profile keeps factory
 rights inside the Head ledger and is safe only when the latest Lerna state is
 embedded in signed snapshot evidence before close or available for contest.
 The claim-materialisation profile makes that repayment explicit through a
-script-controlled claim UTxO, an Aiken spending validator, deterministic
-off-chain transition checks, real Hydra/Cardano devnet evidence, and an
-executable security-theorem gate.
+ledger-enforced claim object, a deterministic transition relation, bounded
+admission rules, verifiable evidence binding, and a conditional acceptance
+theorem.
 
 \medskip
 \noindent
 The design is intentionally bounded. Lerna does not compete with Interhead
 Hydra's virtualisation of Heads across Heads, nor with Hydrozoa's broader
 execution/custody separation and deterministic outer rollout. Lerna uses those
-works as boundary conditions: Interhead explains where virtual Heads may live;
-Hydrozoa shows why compact off-chain state must be rolled out deterministically
-when custody is at stake; Hydra Head supplies the close/contest/fanout substrate
-and the practical pressure that makes compactness valuable. Lerna's originality
-is narrower and more internal: an inner factory-rights discipline, deterministic
-inner materialisation before outer fanout or rollout, and factory-local
-non-interference plus release receipts. The implementation-backed
-claim-materialisation profile is conditional on Hydra contestability, Cardano
-ledger validation of submitted transactions, proof availability,
-watcher/operator liveness, and materialisation capacity inside the committed
-budget. If the Head-local liveness assumption is unacceptable, the
+works as boundary conditions: Interhead explains where virtual Heads may live
+and why enforceable state must survive failed cooperation; Hydrozoa shows why
+compact off-chain state must have deterministic payout order, fallback
+discipline, and no stranded value when custody is at stake. Hydra Head supplies
+the close/contest/fanout substrate and the practical pressure that makes
+compactness valuable. Lerna's originality is narrower and more internal: an
+inner factory-rights discipline with explicit host-interface obligations,
+deterministic materialisation, non-interference, release receipts, balance
+preservation, and no-stranding. The claim-materialisation profile is conditional
+on Hydra contestability, ledger validation of submitted transactions, proof
+availability, watcher/operator liveness, and materialisation capacity inside the
+committed budget. If the Head-local liveness assumption is unacceptable, the
 claim-materialisation profile is the appropriate safety envelope.
 \end{abstract}
 
 \vfill
 \begin{flushleft}
-\textbf{Keywords:} Cardano, Hydra, eUTxO, claim UTxO, Aiken, Plutus, virtual
-channels, state channels, non-interference, native assets, release receipts.
+\textbf{Keywords:} Cardano, Hydra, eUTxO, claim UTxO, virtual channels, state
+channels, non-interference, native assets, release receipts, materialisation.
 \end{flushleft}
 \end{titlepage}
 
@@ -156,6 +159,7 @@ channels, state channels, non-interference, native assets, release receipts.
 \pagenumbering{arabic}
 
 \section{Introduction}
+\label{sec:intro}
 
 Hydra Head gives a fixed participant set a Cardano-like off-chain ledger:
 participants deposit UTxOs, sign snapshots, close with a snapshot when
@@ -168,36 +172,28 @@ updated optimistically, what exact inner object or transition discipline turns
 them back into ordinary ledger claims without double release, stale-state
 settlement, or silent asset loss?
 
-Lerna answers that question as a factory-rights protocol rather than as a
-roadmap. In the Head-local factory profile, compact rights remain inside the
+Lerna answers that question as a factory-rights protocol with two safety
+envelopes. In the Head-local factory profile, compact rights remain inside the
 Head or virtual Head and are safe only if the latest Lerna state is already
 embedded in a signed Hydra snapshot before close, or if an honest actor can
 contest a stale close with such a newer signed snapshot. In the
 claim-materialisation profile, the same repayment is made explicit by a
-script-controlled claim UTxO carrying unresolved value, latest-state metadata,
-authorisation policy, release-receipt state, proof-availability commitments,
-and materialisation bounds. Settlement spends the claim through a compiled
-Aiken validator. A final settlement consumes all unresolved claim value. A
-partial settlement creates a continuation claim UTxO with an inline datum and a
-strictly advanced settled-right frontier.
+ledger-controlled claim object carrying unresolved value, latest-state metadata,
+authorisation policy, release-receipt state, proof-availability commitments, and
+materialisation bounds. A final settlement consumes all unresolved claim value.
+A partial settlement creates a continuation claim with a strictly advanced
+settled-right frontier.
 
-This paper is written to keep those two profiles in one theory. The
-claim-materialisation implementation is not presented as a Hydra replacement, a Hydrozoa
-competitor, or an ``eltoo for Cardano''. It is implementation evidence for the
-stronger materialisation profile. The implementation surface cited in this
-paper is the repository at commit \texttt{66ff116}; fresh local acceptance
-requires regenerating or path-normalising the recorded artifacts for the current
-checkout. The acceptance commands are:
-
-\begin{lstlisting}[language=bash]
-npm test
-npm run verify:security-theorem
-npm run check:devnet
-npm run check:profiles
-\end{lstlisting}
+This paper keeps those two profiles in one theory without ordering them as a
+delivery story. Claim-materialisation is not presented as a Hydra replacement, a
+Hydrozoa competitor, or an ``eltoo for Cardano''. It is the stronger safety
+envelope for deployments that cannot rely solely on Head-local snapshot
+availability. Instantiation evidence is useful as corroboration, but the thesis
+is stated at the level of ledger objects, transition invariants, and acceptance
+conditions rather than at the level of a particular codebase.
 
 \paragraph{Contributions.}
-The paper makes three concrete contributions.
+The paper makes four protocol contributions.
 
 \begin{description}[leftmargin=2.6cm,style=nextline]
 \item[C1. Inner factory rights discipline.]
@@ -206,27 +202,188 @@ rights state binding factory identity, Hydra Head identity, network id,
 settlement epoch, latest-state number, unresolved value, signer policy,
 release-receipt root, proof-availability root, and materialisation bounds.
 The same discipline can be represented as Head UTxOs in the Head-local profile
-or as a claim datum in the claim-materialisation profile.
+or as a claim datum in the claim-materialisation profile
+(\Cref{sec:state}).
 
 \item[C2. Deterministic inner materialisation before outer fanout or rollout.]
 Lerna makes compactness payable. Before the outer Hydra fanout, Interhead
 movement, or Hydrozoa-style rollout is relied upon for custody, compact factory
 rights must be deterministically expanded into ordinary ledger outputs or into
-a continuation object with an explicitly bounded remaining value.
+a continuation object with an explicitly bounded remaining value
+(\Cref{sec:transition,sec:enforcement}).
 
 \item[C3. Factory-local non-interference plus release receipts.]
 Lerna separates authorised partial settlement from unauthorised interference.
 Reduced-signature materialisation is admissible only with a factory-local frame
 proof that untouched owners remain untouched. Each released right also receives
 a deterministic receipt, so the protocol has both a non-interference argument
-and a nullifier against double release.
+and a nullifier against double release
+(\Cref{lem:noninterference,lem:receipt-frontier}).
+
+\item[C4. Host-interface and no-stranding obligations.]
+Lerna states what it needs from the surrounding Head or ledger without turning
+that host into part of the Lerna protocol: scoped identities, authenticated
+state evidence, output accounting, validity deadlines, bounded transaction
+capacity, and a way to submit admissible materialisation. Under those
+obligations, an accepted transition either pays selected rights or preserves the
+remaining value in one bounded continuation; it does not leave compact rights in
+an unreachable or ambiguous state
+(\Cref{sec:host-interface,lem:no-stranding}).
 \end{description}
 
-\section{Layering}
+\paragraph{Claim status.}
+This document is a protocol thesis, not a complete proof of every deployment
+setting. \textbf{Definitions} specify the intended ledger objects and transition
+interfaces. \textbf{Assumptions} state the external conditions Lerna does not
+force by itself. \textbf{Lemmas} state local safety facts under those
+assumptions. \textbf{\Cref{thm:claim-materialisation-safety}} is a narrow
+acceptance theorem for the claim-materialisation profile only; it should not be
+read as a theorem for arbitrary Head-local liveness, arbitrary application
+semantics, or cross-Head composition.
+
+\paragraph{Design principles.}
+\begin{enumerate}[label=P\arabic*.,leftmargin=1.2cm]
+\item \textbf{Compactness is debt.} A compact factory object is admissible only
+because the protocol defines how it becomes ordinary ledger claims again.
+\item \textbf{Outer settlement is not inner materialisation.} Hydra fanout,
+Interhead movement, and Hydrozoa-style rollout should see materialised rights or
+a bounded continuation, not an opaque unresolved factory.
+\item \textbf{Same-scope supersession only.} Latest-state replacement is valid
+only inside one domain, network, Head, factory, and settlement epoch.
+\item \textbf{Conservation is exact.} Lovelace and native assets must be
+conserved across selected outputs and any continuation.
+\item \textbf{Locality is a proof obligation.} Reduced-signature settlement is
+safe only when the touched rights and untouched frame are explicit.
+\item \textbf{Receipts are nullifiers.} Every materialised right advances a
+receipt root and frontier so the same right prefix cannot be settled twice.
+\item \textbf{Assumptions are first-class.} Proof availability, watcher/operator
+liveness, and capacity bounds must be stated where the protocol cannot enforce
+them.
+\item \textbf{Fallback preserves enforceable state.} If cooperation stops, the
+protocol must move either to signed Head evidence or to a ledger-visible claim;
+it may not strand rights in an opaque local record.
+\item \textbf{Deterministic order beats discretionary payout.} Multi-batch
+materialisation must use canonical ordering and a monotone frontier so the next
+claim state is independent of operator preference.
+\end{enumerate}
+
+\section{Problem Statement and Design Thesis}
+\label{sec:problem}
+
+\subsection{The Compactness Debt Problem}
+\label{sec:compactness-debt}
+
+The central problem is not how to make a Hydra Head hold fewer UTxOs. That is
+only the local optimisation. The harder problem is how to make the compression
+honest at the moment when cooperative updating stops. A compact factory object
+stands for many rights, owners, release conditions, and asset claims. If that
+object reaches close, fanout, or outer rollout without a deterministic
+materialisation discipline, the host ledger sees only a small object while users
+expect individual claims.
+
+Lerna treats this as a compactness debt. The debt is paid when the compact
+factory state is expanded into ordinary ledger outputs, release receipts, and,
+where necessary, one bounded continuation. This framing explains why
+\Cref{sec:state} defines the compact state before \Cref{sec:transition} defines
+materialisation, and why \Cref{sec:acceptance} proves only the
+claim-materialisation envelope rather than the whole family of possible host
+systems.
+
+\subsection{Design Thesis}
+\label{sec:design-thesis}
+
+The central thesis is:
+\begin{quote}
+\emph{A Hydra-native factory is safe only when compact rights are treated as
+ledger debt that must be deterministically materialised under explicit
+snapshot, evidence, and capacity assumptions.}
+\end{quote}
+
+This thesis separates three questions that are often collapsed. First, where is
+the latest compact factory state authenticated? Second, who is authorised to
+materialise which rights? Third, what exact ledger value must appear after
+materialisation? The Head-local profile answers the first question through
+signed Head snapshots. The claim-materialisation profile answers it through a
+claim object at the ledger boundary. Both profiles rely on the same inner
+discipline: same-scope supersession, exact conservation, non-interference for
+partial settlement, release receipts, and bounded continuation.
+
+\subsection{Lessons from the Host References}
+\label{sec:host-lessons}
+
+The two host references used by this thesis point to the same design demand from
+different directions. Interhead treats virtual Head state as enforceable state
+that must survive failed cooperation by moving into a ledger-enforced path when
+necessary~\cite{interhead}. Hydrozoa separates ordinary cooperative operation
+from a fallback regime and gives deterministic rollout rules so large L2
+withdrawal sets are paid without stranding value~\cite{hydrozoa-spec}. Lerna
+adapts those lessons inward: it does not virtualise Heads and it does not define
+a full L2 ledger, but it does require compact factory rights to remain
+enforceable, ordered, and payable.
+
+\begin{table}[t]
+\centering
+\caption{Host-reference lessons absorbed by Lerna.}
+\label{tab:host-lessons}
+\begin{tabular}{L{0.28\linewidth}L{0.31\linewidth}L{0.31\linewidth}}
+\toprule
+\textbf{Reference pattern} & \textbf{Lerna consequence} & \textbf{Where it appears}\\
+\midrule
+Enforceable virtual state & Compact rights are safe only if they can become
+ordinary claims under the same scope. & Settlement scope, state commitments, and
+claim admission.\\
+Fallback after failed cooperation & The Head-local profile needs signed
+snapshot evidence; otherwise the claim path is the safety envelope. & Profile
+boundary and liveness assumptions.\\
+Deterministic payout ordering & Partial materialisation uses canonical right
+order, release receipts, and a monotone frontier. & Materialisation transition
+and continuation rules.\\
+No stranded value & Every accepted partial transition preserves unresolved
+value in exactly one continuation; final acceptance requires zero unresolved
+value. & No-stranding lemma and acceptance theorem.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Profile Boundary}
+\label{sec:profile-boundary}
+
+\begin{table}[t]
+\centering
+\caption{Settlement safety envelopes in Lerna.}
+\label{tab:profile-boundary}
+\begin{tabular}{L{0.22\linewidth}L{0.33\linewidth}L{0.34\linewidth}}
+\toprule
+\textbf{Profile} & \textbf{Safety envelope} & \textbf{When to use it}\\
+\midrule
+Head-local factory & Compact state remains inside the Head ledger and is safe
+only when the latest factory state is in signed snapshot evidence before close
+or can be used for contest. & Use when signed snapshot availability and watcher
+liveness are acceptable assumptions.\\
+Claim-materialisation & Compact state becomes a ledger-controlled claim object;
+settlement must satisfy scope, authorisation, conservation, receipts,
+continuation, and admission bounds. & Use when Head-local snapshot availability
+is too strong and explicit ledger settlement is required.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\Cref{tab:profile-boundary,sec:layering} position these envelopes relative to
+Hydra, Interhead, and Hydrozoa. \Cref{sec:system} fixes the adversary and
+assumptions.
+\Cref{sec:state,sec:state-machine,sec:transition,sec:enforcement} define the
+protocol objects, state machine, and checks. \Cref{sec:acceptance} gives the
+narrow acceptance argument, while
+\Cref{sec:evidence,sec:related-work,sec:limitations,app:review-matrix} state how
+the thesis should be reviewed.
+
+\section{Layering and Positioning}
+\label{sec:layering}
 
 Lerna stays inside the Cardano/Hydra settlement vocabulary. Cardano L1 supplies
-eUTxO accounting, validators, inline datums, reference scripts, native assets,
-validity intervals, and min-ADA rules~\cite{cardano-eutxo}. Hydra supplies the
+eUTxO accounting, script-governed outputs, native assets, validity intervals,
+and min-ADA rules~\cite{cardano-eutxo}. Hydra supplies the
 outer Head lifecycle: open, snapshot, close, contest, and fanout. Lerna supplies
 the inner factory discipline used when many compact virtual-channel rights must
 be materialised into ordinary ledger outputs. Figure~\ref{fig:stack} summarises
@@ -236,35 +393,17 @@ this placement.
 \centering
 \resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[font=\sffamily\small]
-  \node[lernaBox, fill=gray!8, minimum width=13.6cm, minimum height=1.0cm] (l1)
-    at (0,0) {\textbf{Cardano L1}\\ eUTxO ledger, validators, native assets, min-ADA, transaction budgets};
+  \node[lernaAmberBox, minimum width=5.4cm, minimum height=1.25cm]
+    at (-3.25,3.2) {\textbf{Lerna inner rule}\\ compact rights become\\ materialised claims};
 
-  \node[lernaGreenBox, minimum width=5.6cm, minimum height=1.15cm] (headA)
-    at (-3.5,1.75) {\textbf{Physical Hydra Head}\\ snapshots, close, contest, fanout};
-  \node[lernaGreenBox, minimum width=5.6cm, minimum height=1.15cm] (headB)
-    at (3.5,1.75) {\textbf{Physical Hydra Head}\\ overlapping parties and enforceable UTxOs};
+  \node[lernaSoft, minimum width=5.4cm, minimum height=1.25cm]
+    at (3.25,3.2) {\textbf{Outer settlement}\\ Hydra fanout or\\ Hydrozoa-style rollout};
 
-  \node[lernaSoft, minimum width=4.2cm, minimum height=1.0cm] (interhead)
-    at (0,3.25) {\textbf{Interhead}\\ virtual Head across Heads};
+  \node[lernaGreenBox, minimum width=12.0cm, minimum height=1.25cm]
+    at (0,1.35) {\textbf{Hydra / Interhead Head context}\\ physical or virtual Head, signed snapshots, close, contest, fanout};
 
-  \node[lernaAmberBox, minimum width=4.1cm, minimum height=1.0cm] (lerna)
-    at (0,4.75) {\textbf{Lerna}\\ virtual rights inside a Head};
-
-  \node[lernaSoft, minimum width=4.8cm, minimum height=0.95cm] (hydro)
-    at (5.0,4.75) {\textbf{Hydrozoa-style outer rollout}\\ deterministic custody payout};
-
-  \draw[lernaLine] (headA.north east) -- (interhead.south west);
-  \draw[lernaLine] (headB.north west) -- (interhead.south east);
-  \draw[lernaLine] (interhead.north) -- node[lernaTiny, right=3pt] {host context} (lerna.south);
-  \draw[lernaDashed] (lerna.east) -- node[lernaTiny, above] {inner state expanded first} (hydro.west);
-  \draw[lernaLine] (headA.south) -- node[lernaTiny, left] {fanout} (l1.north west);
-  \draw[lernaLine] (headB.south) -- node[lernaTiny, right] {fanout} (l1.north east);
-  \draw[lernaDashed] (hydro.south) .. controls (5.1,2.7) and (4.2,1.0) .. node[lernaTiny, right] {rollout} (l1.east);
-
-  \node[draw=LernaAmber!80!black, rounded corners=7pt, line width=1pt,
-    fit=(lerna), inner sep=7pt, label={[lernaTitle]above:inner layer}] {};
-  \node[draw=LernaGreen!70!black, rounded corners=7pt, line width=1pt,
-    fit=(headA)(headB)(interhead), inner sep=10pt, label={[lernaTitle]above left:Head layer}] {};
+  \node[lernaBox, fill=gray!8, minimum width=12.8cm, minimum height=1.0cm]
+    at (0,0) {\textbf{Cardano L1}\\ eUTxO ledger, scripts, native assets, min-ADA, transaction budgets};
 \end{tikzpicture}}
 \caption{Lerna's location in the stack. Hydra and Interhead provide Head
 contexts and the outer settlement lifecycle; Hydrozoa motivates deterministic
@@ -274,6 +413,7 @@ factory rights inside a physical or virtual Head.}
 \end{figure}
 
 \subsection{Lerna below Interhead: from virtual Heads to virtual rights}
+\label{sec:below-interhead}
 
 Interhead virtualises Hydra Heads across Heads: it studies how two Heads and
 their intermediaries can move a virtual Head state between Head contexts while
@@ -294,6 +434,7 @@ below Interhead: Interhead says where the virtual Head may be; Lerna says how
 rights inside that Head are released.
 
 \subsection{Inner rollout before outer rollout: Lerna and Hydrozoa}
+\label{sec:inner-rollout}
 
 Hydrozoa separates execution from custody and gives deterministic rollout or
 fallback procedures for turning L2 ledger effects into L1 transactions when
@@ -307,9 +448,9 @@ factory state into ordinary Head UTxOs or into a bounded continuation claim.
 Only then rely on Hydra fanout, Interhead movement, or Hydrozoa-style rollout
 for the outer layer. Without this inner rollout, the outer layer sees a small
 UTxO whose datum names a compressed factory, not the individual rights that
-users expect to receive. Lerna's claim-materialisation profile is the measured
-implementation of this rule: it turns a compact claim into selected settlement
-outputs, release receipts, and, if necessary, one continuation claim whose
+users expect to receive. Lerna's claim-materialisation profile instantiates
+this rule: it turns a compact claim into selected settlement outputs, release
+receipts, and, if necessary, one continuation claim whose
 remaining value and frontier are explicit.
 
 \begin{center}
@@ -331,6 +472,7 @@ profile when Head-local checkpoint or contest evidence cannot be relied upon.\\
 \end{center}
 
 \subsection{Why compact factory state matters for Hydra fanout}
+\label{sec:compact-fanout}
 
 Hydra fanout is the final exposure point of a Head state. The Hydra
 documentation records practical constraints around Head finalisation: large or
@@ -358,6 +500,7 @@ be represented as ordinary conserved assets in the materialised state. Compact
 factory accounting is not allowed to hide a minted-token finalisation hazard.
 
 \subsection[Compatibility across host ledgers]{Compatibility with physical Heads, Interhead virtual Heads,\\and Hydrozoa-style ledgers}
+\label{sec:compatibility}
 
 Lerna is compatible with three host settings.
 
@@ -384,10 +527,11 @@ asked to distribute custody.
 The compatibility claim is deliberately modest. Lerna assumes the host system
 has a notion of ledger outputs, value conservation, domain separation,
 deadlines, and a way to submit deterministic materialisation transactions. It
-does not require the host system to adopt Lerna's claim validator, and it does
-not require Lerna to adopt the host system's full dispute game.
+does not require the host system to adopt one particular claim script, and it
+does not require Lerna to adopt the host system's full dispute game.
 
 \subsection{What Lerna deliberately does not take from each prior work}
+\label{sec:prior-work-boundaries}
 
 \begin{description}[leftmargin=3.8cm,style=nextline]
 \item[From Hydra Head.]
@@ -413,8 +557,40 @@ Bitcoin-style update transactions into the eUTxO setting.
 \end{description}
 
 \section{System and Threat Model}
+\label{sec:system}
+
+\subsection{Host Interface}
+\label{sec:host-interface}
+
+Lerna is intentionally specified below the host lifecycle. A host Head,
+virtual Head, or compatible ledger environment must provide the following
+abstract interface:
+
+\begin{description}[leftmargin=3.2cm,style=nextline]
+\item[Scoped identity.]
+A stable domain, network, Head, factory, and epoch namespace for every compact
+state and materialisation witness.
+
+\item[Authenticated state evidence.]
+A way to recognise the latest same-scope state, either as signed Head evidence
+or as a ledger-visible claim datum and transition witness.
+
+\item[Ledger accounting.]
+Explicit outputs, values, native assets, validity intervals, and transaction
+budgets sufficient to check exact conservation and admission bounds.
+
+\item[Submission path.]
+At least one authorised path by which admissible materialisation, continuation,
+or final settlement can reach the host ledger within the relevant deadlines.
+\end{description}
+
+The host interface is a contract between the thesis and its environment. If an
+environment cannot provide one of these capabilities, Lerna may still be a useful
+local accounting convention, but the settlement safety claim in this paper does
+not apply.
 
 \subsection{Actors}
+\label{sec:actors}
 
 \begin{description}[leftmargin=2.8cm,style=nextline]
 \item[Head participant.]
@@ -435,6 +611,7 @@ path.
 \end{description}
 
 \subsection{Adversary}
+\label{sec:adversary}
 
 The adversary may corrupt participants, operators, watchers, or Head
 participants; withhold signatures; provide stale latest-state evidence; propose
@@ -442,24 +619,27 @@ same-number conflicting states; withhold proof bodies; try replay across
 domains, networks, Heads, factories, or epochs; create outputs below min-ADA;
 over-release lovelace or native assets; reorder multi-batch settlement; mutate
 continuation datums; leave minted control tokens unresolved; force large
-fanout sets; or tamper with local evidence files used by implementation
-acceptance.
+fanout sets; or tamper with evidence used for materialisation acceptance.
 
 \subsection{Assumptions}
+\label{sec:assumptions}
 
 \begin{assumption}[Hydra contestability]
+\label{asm:hydra-contestability}
 If the Head is closed with stale state, at least one honest actor can observe
 the close and contest with newer valid Head evidence before the contestation
 deadline.
 \end{assumption}
 
 \begin{assumption}[Cardano ledger validation]
+\label{asm:ledger-validation}
 Submitted materialisation, claim-creation, claim-settlement, and continuation
-transactions are validated by the Cardano ledger according to the observed
-devnet rules.
+transactions are validated by the Cardano ledger according to the applicable
+ledger rules.
 \end{assumption}
 
 \begin{assumption}[Head-local checkpoint or materialisation]
+\label{asm:head-local-checkpoint}
 When the Head-local factory profile is used, safety requires at least one
 authorised Head participant, operator, or watcher to ensure that the latest
 Lerna state is represented in a signed Hydra snapshot before the Head is
@@ -472,24 +652,29 @@ relying on Head-local accounting alone.
 \end{assumption}
 
 \begin{assumption}[Proof availability]
+\label{asm:proof-availability}
 Proof bodies committed by the proof witness root are available to the verifier
 before materialisation is accepted.
 \end{assumption}
 
 \begin{assumption}[Watcher and operator liveness]
+\label{asm:liveness}
 At least one actor with sufficient evidence and authority can submit accepted
 materialisation plans within the relevant Head and ledger deadlines. This is a
 liveness assumption, not a claim that Lerna can force offline parties to act.
 \end{assumption}
 
 \begin{assumption}[Bounded materialisation]
+\label{asm:bounded-materialisation}
 The number of outputs, proof bytes, execution units, and continuation value fit
 within the budget committed in the factory state or claim datum.
 \end{assumption}
 
 \section{Factory and Claim State}
+\label{sec:state}
 
 \begin{definition}[Settlement scope]
+\label{def:scope}
 A Lerna settlement scope is the tuple
 \[
   \Sigma=(\mathsf{domain},\mathsf{networkId},\mathsf{hydraHeadId},
@@ -506,40 +691,23 @@ scope while relying on different enforcement envelopes.
 \centering
 \resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[font=\sffamily\small, node distance=1.0cm]
-  \node[lernaAmberBox, minimum width=4.8cm, minimum height=1.05cm] (factory)
-    at (0,3.7) {\textbf{Lerna FactoryState \(F\)}\\ rights commitment, unresolved value, frontier};
+  \node[lernaAmberBox, minimum width=5.2cm, minimum height=1.05cm]
+    at (0,4.1) {\textbf{Lerna FactoryState \(F\)}\\ rights commitment, unresolved value, frontier};
 
-  \node[lernaGreenBox, minimum width=5.3cm, minimum height=1.05cm] (headlocal)
-    at (-4.1,2.0) {\textbf{Head-local factory profile}\\ compact state remains in Head UTxOs};
-  \node[lernaSoft, minimum width=5.3cm, minimum height=1.05cm] (claim)
-    at (4.1,2.0) {\textbf{Claim-materialisation profile}\\ compact state becomes a claim UTxO};
+  \node[lernaGreenBox, minimum width=5.5cm, minimum height=1.05cm]
+    at (-4.1,2.35) {\textbf{Head-local factory profile}\\ compact state remains in Head UTxOs};
+  \node[lernaSoft, minimum width=5.5cm, minimum height=1.05cm]
+    at (4.1,2.35) {\textbf{Claim-materialisation profile}\\ compact state becomes a claim UTxO};
 
-  \node[lernaGreenBox, minimum width=4.7cm, minimum height=0.9cm] (snapshot)
-    at (-4.1,0.35) {signed Hydra snapshot embeds \(F\)};
-  \node[lernaRedBox, minimum width=4.7cm, minimum height=0.9cm] (contest)
-    at (-4.1,-1.15) {stale close requires newer signed snapshot};
+  \node[lernaGreenBox, minimum width=5.5cm, minimum height=1.35cm]
+    at (-4.1,0.55) {\textbf{Safety evidence}\\ signed snapshot embeds \(F\)\\ stale close uses newer snapshot};
 
-  \node[lernaSoft, minimum width=4.7cm, minimum height=0.9cm] (validator)
-    at (4.1,0.35) {Aiken claim validator checks spend};
-  \node[lernaSoft, minimum width=4.7cm, minimum height=0.9cm] (evidence)
-    at (4.1,-1.15) {theorem gate checks artifacts and evidence};
+  \node[lernaSoft, minimum width=5.5cm, minimum height=1.35cm]
+    at (4.1,0.55) {\textbf{Safety evidence}\\ ledger rule checks transition\\ evidence binding is explicit};
 
-  \node[lernaAmberBox, minimum width=5.6cm, minimum height=1.0cm] (materialise)
-    at (0,-2.75) {\textbf{Deterministic materialisation}\\ ordinary outputs + receipts + optional continuation};
+  \node[lernaAmberBox, minimum width=7.2cm, minimum height=1.0cm]
+    at (0,-1.45) {\textbf{Shared acceptance result}\\ ordinary outputs + release receipts + optional continuation};
 
-  \draw[lernaLine] (factory.south west) -- (headlocal.north east);
-  \draw[lernaLine] (factory.south east) -- (claim.north west);
-  \draw[lernaLine] (headlocal.south) -- (snapshot.north);
-  \draw[lernaLine] (snapshot.south) -- (contest.north);
-  \draw[lernaLine] (claim.south) -- (validator.north);
-  \draw[lernaLine] (validator.south) -- (evidence.north);
-  \draw[lernaLine] (contest.south) |- (materialise.west);
-  \draw[lernaLine] (evidence.south) |- (materialise.east);
-
-  \node[lernaTiny, text=LernaGrey] at (-4.1,-2.05)
-    {safety depends on signed snapshot availability};
-  \node[lernaTiny, text=LernaGrey] at (4.1,-2.05)
-    {safety depends on ledger validation and local artifact binding};
 \end{tikzpicture}}
 \caption{The two settlement profiles are safety envelopes for the same compact
 factory state. Head-local settlement is lighter but depends on signed snapshot
@@ -548,12 +716,13 @@ compact rights explicit at the ledger boundary.}
 \label{fig:profiles}
 \end{figure}
 
-The word \(\mathsf{claimEpoch}\) is used here as a settlement epoch, not as a
-release label. In the Head-local profile, the same scope binds compact factory
-state inside the Head ledger. In the claim-materialisation profile, the scope is
-carried by the claim datum and checked by the Aiken validator.
+The word \(\mathsf{claimEpoch}\) is used here as a settlement epoch. In the
+Head-local profile, the same scope binds compact factory state inside the Head
+ledger. In the claim-materialisation profile, the scope is carried by the claim
+datum and checked at the ledger boundary.
 
 \begin{definition}[Factory state]
+\label{def:factory-state}
 A Lerna factory state \(F\) is a compact Head-local object:
 \[
 \begin{aligned}
@@ -570,6 +739,7 @@ canonical right prefix already materialised or released.
 \end{definition}
 
 \begin{definition}[Head snapshot embedding]
+\label{def:head-snapshot-embedding}
 A Head-local factory state is embedded when a Hydra snapshot contains one or
 more Head UTxOs whose datum and value commit to \(F\). A newer embedded factory
 state supersedes an older one only if it has the same settlement scope and a
@@ -580,6 +750,7 @@ advanced deterministically.
 \end{definition}
 
 \begin{lemma}[Head-local release safety]
+\label{lem:head-local-safety}
 Assume Hydra contestability, signed-snapshot availability, and bounded
 materialisation. If the closed or successfully contested Head snapshot embeds
 the greatest signed Lerna factory state \(F\), then deterministic
@@ -601,7 +772,7 @@ if the greatest signed factory state is not available for close or contest, the
 Head-local profile does not provide this safety envelope.
 \end{proof}
 
-The implementation-backed profile uses the following domain separators:
+The claim-materialisation profile uses the following domain separators:
 
 \begin{center}
 \begin{tabular}{ll}
@@ -617,6 +788,7 @@ The implementation-backed profile uses the following domain separators:
 \end{center}
 
 \begin{definition}[Claim datum]
+\label{def:claim-datum}
 A claim datum \(C\) is the ledger representation of compact factory rights in
 the claim-materialisation profile. It contains:
 \[
@@ -648,9 +820,53 @@ The Head-local profile uses the same conceptual fields, but their enforcement
 comes from the Head snapshot discipline and the authorised
 checkpoint/materialisation assumption rather than from spending a claim UTxO on
 L1. This is the main reason the paper treats the two settlement profiles as
-safety envelopes, not as software releases.
+safety envelopes rather than as deployment stages.
+
+\section{Protocol State Machine}
+\label{sec:state-machine}
+
+Lerna is easiest to audit as a small state machine around compactness debt. The
+state machine is not a new host-ledger lifecycle. It is the inner discipline
+that decides whether a compact factory state is still safely compact, has been
+checkpointed inside a Head, or must be materialised through a claim object.
+
+\begin{table}[t]
+\centering
+\caption{Lerna state-machine view.}
+\label{tab:state-machine}
+\begin{tabular}{L{0.22\linewidth}L{0.34\linewidth}L{0.33\linewidth}}
+\toprule
+\textbf{State} & \textbf{Meaning} & \textbf{Admissible next step}\\
+\midrule
+Compact factory & Rights are represented by a compact state \(F\) inside a
+Head or virtual Head. & Continue updating, checkpoint \(F\), or create a claim
+object before outer settlement is relied upon.\\
+Head-local checkpoint & A signed Head snapshot embeds the latest same-scope
+factory state. & Use Head-local materialisation if
+\Cref{asm:head-local-checkpoint} holds, or move to claim-materialisation if it
+does not.\\
+Claim-open & A claim datum \(C\) carries unresolved value, signer policy,
+receipt state, frontier, and bounds. & Apply an admissible materialisation
+transition under \Cref{sec:transition}.\\
+Partial materialisation & A selected canonical batch has been paid and one
+continuation claim remains. & Repeat claim-materialisation with the advanced
+frontier and preserved scope.\\
+Final acceptance & No unresolved lovelace or native assets remain. & Stop; the
+profile has no continuing claim object.\\
+Rejected transition & Scope, supersession, authorisation, conservation,
+receipt, continuation, or bounds fail. & No profile acceptance; a valid actor
+must supply different evidence or a different batch.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\Cref{tab:state-machine} gives the operational reading of
+\Cref{def:factory-state,def:head-snapshot-embedding,def:claim-datum}. The
+transition section below specifies the claim-materialisation path in detail; the
+Head-local path remains conditional on signed snapshot availability.
 
 \section{Materialisation Transition}
+\label{sec:transition}
 
 A materialisation transition selects a canonical batch of rights
 \(R=(r_1,\ldots,r_k)\) with matching settlement outputs
@@ -666,34 +882,20 @@ claim-materialisation view of the same transition.
 \centering
 \resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[font=\sffamily\small]
-  \node[lernaSoft, minimum width=3.9cm, minimum height=1.25cm] (claim)
-    at (0,1.8) {\textbf{Claim UTxO \(C\)}\\ unresolved value\\ frontier \(f\)};
+  \node[lernaSoft, minimum width=3.8cm, minimum height=1.25cm]
+    at (-4.8,1.1) {\textbf{Input}\\ Claim UTxO \(C\)\\ unresolved value, frontier \(f\)};
 
-  \node[lernaAmberBox, minimum width=4.3cm, minimum height=1.25cm] (transition)
-    at (4.7,1.8) {\textbf{Materialisation transition}\\ batch \(R=(r_1,\ldots,r_k)\)\\ signer set \(S\)};
+  \node[lernaAmberBox, minimum width=4.5cm, minimum height=1.25cm]
+    at (0,1.1) {\textbf{Decision}\\ batch \(R=(r_1,\ldots,r_k)\)\\ signer set \(S\)};
 
-  \node[lernaGreenBox, minimum width=3.4cm, minimum height=1.0cm] (outputs)
-    at (9.2,3.25) {\textbf{Selected outputs}\\ ordinary Head/L1 UTxOs};
-  \node[lernaGreenBox, minimum width=3.4cm, minimum height=1.0cm] (receipts)
-    at (9.2,1.8) {\textbf{Release receipts}\\ new receipt root};
-  \node[lernaSoft, minimum width=3.4cm, minimum height=1.0cm] (cont)
-    at (9.2,0.35) {\textbf{Continuation \(C'\)}\\ remaining value, frontier \(f'\)};
+  \node[lernaGreenBox, minimum width=4.7cm, minimum height=1.55cm]
+    at (5.0,1.1) {\textbf{Accepted products}\\ selected outputs\\ release receipts\\ optional continuation \(C'\)};
 
-  \node[lernaRedBox, minimum width=4.0cm, minimum height=0.9cm] (reject)
-    at (4.7,-0.25) {\textbf{Reject}\\ stale state, wrong scope, over-release, bad frame};
-
-  \draw[lernaLine] (claim.east) -- node[lernaTiny, above] {spend} (transition.west);
-  \draw[lernaLine] (transition.east) -- (outputs.west);
-  \draw[lernaLine] (transition.east) -- (receipts.west);
-  \draw[lernaLine] (transition.east) -- (cont.west);
-  \draw[lernaDashed] (transition.south) -- (reject.north);
-
-  \node[lernaTiny, text=LernaInk, align=center] at (4.7,3.35)
+  \node[lernaTiny, text=LernaInk, align=center] at (0,2.85)
     {\(\Value(C)=\sum O+\Value(C')\)\\ \(f' > f\), scope unchanged};
-  \draw[lernaDashed] (claim.north) .. controls (2.0,3.4) and (6.7,3.8) .. (outputs.north west);
 
-  \node[lernaTiny, text=LernaGrey] at (9.2,-0.65)
-    {No continuation iff all unresolved lovelace and native assets are released.};
+  \node[lernaRedBox, minimum width=7.0cm, minimum height=0.9cm]
+    at (0,-0.9) {\textbf{Rejected if}\\ stale state, wrong scope, over-release, bad frame};
 \end{tikzpicture}}
 \caption{Claim-materialisation as a value-preserving transition. The compact
 claim is spent once; selected rights become ordinary outputs, released rights
@@ -703,6 +905,7 @@ continuation claim.}
 \end{figure}
 
 \subsection{Admission}
+\label{sec:admission}
 
 The transition is admitted only if:
 
@@ -712,37 +915,37 @@ The transition is admitted only if:
 redeemer match the datum.
 \item \(k > 0\) and \(k \le C.\mathsf{maxOutputCount}\).
 \item Every selected output is at or above \(C.\mathsf{minAdaFloor}\).
-\item Proof size and script-cost evidence are within the committed bounds.
+\item Proof size and execution-cost evidence are within the committed bounds.
 \item The batch starts strictly after \(C.\mathsf{lastSettledRightId}\) in the
 canonical settled-right order.
 \end{enumerate}
 
 \subsection{Authorisation}
+\label{sec:authorisation}
 
-Lerna has two implemented authorisation modes. In full authorisation, the
-settlement evidence must contain exactly the datum-bound signer set. In
-reduced-signature mode, the authorised signers must be an exact proper subset
-and the non-interference witness must show that all materialised outputs belong
-to signed owners and that the untouched frame is preserved.
-
-The implementation evidence includes reduced-signature settlement on a real
-devnet run. This matters because reduced-signature settlement is a common
-source of accidental over-claiming: without a frame proof, an output for an
-unsigned owner could be smuggled into a partial settlement.
+Lerna specifies two authorisation modes. In full authorisation, the settlement
+evidence must contain exactly the datum-bound signer set. In reduced-signature
+mode, the authorised signers must be an exact proper subset and the
+non-interference witness must show that all materialised outputs belong to
+signed owners and that the untouched frame is preserved. This matters because
+reduced-signature settlement is a common source of accidental over-claiming:
+without a frame proof, an output for an unsigned owner could be smuggled into a
+partial settlement.
 
 \subsection{Conservation}
+\label{sec:conservation}
 
 Let \(M\) be the value materialised by the selected settlement outputs and
 \(Remainder\) be the value recorded in the continuation claim, or zero for a
-final settlement. The validator and deterministic model require:
+final settlement. The transition relation requires:
 \[
   \Value(C) = M + Remainder.
 \]
-This equality is exact over lovelace and native assets. The native-asset
-profile is therefore not merely a text extension; it is a profile-matrix run
-whose real devnet evidence must pass.
+This equality is exact over lovelace and native assets. Native-asset treatment
+is therefore part of the protocol invariant, not an optional textual extension.
 
 \subsection{Release Receipts}
+\label{sec:release-receipts}
 
 For each materialised right \(r_i\) and selected output \(o_i\), Lerna emits a
 deterministic receipt:
@@ -756,23 +959,27 @@ right prefix again because the canonical frontier and receipt root must both
 advance.
 
 \subsection{Continuation}
+\label{sec:continuation}
 
 If unresolved value remains, exactly one continuing output must return to the
-claim script address with an inline datum \(C'\). That datum must preserve the
+claim address with continuing state \(C'\). That state must preserve the
 scope, signer policy, non-interference root, materialisation budget, proof
 availability mode, and proof witness root, while advancing the latest-state
 number, receipt root, settled-right count, last settled right id, unresolved
 value, and state commitment. If no unresolved value remains, there must be no
 continuing claim output.
 
-\section{Validator Enforcement}
+\section{Ledger Enforcement}
+\label{sec:enforcement}
 
-The Aiken validator \texttt{validators/lerna\_claim.ak} enforces the settlement
-rules at the script boundary. Its key checks are:
+The claim-materialisation profile is intended to be enforced at the ledger
+boundary by a claim script or equivalent admissibility rule. Its key checks are:
 
 \begin{longtable}{L{0.33\linewidth}L{0.57\linewidth}}
+\caption{Ledger checks required by the claim-materialisation profile.}
+\\
 \toprule
-\textbf{Check family} & \textbf{Validator responsibility}\\
+\textbf{Check family} & \textbf{Ledger responsibility}\\
 \midrule
 \endhead
 Input and continuation & Resolve the own input, compare its value to claim
@@ -797,14 +1004,17 @@ min-ADA policy, and continuation-value safety.\\
 \bottomrule
 \end{longtable}
 
-These checks are intentionally redundant with the deterministic off-chain
-model. The model explains and generates expected transitions; the validator
-decides whether an on-chain spend is admissible; the real devnet verifier checks
-that the claimed local evidence refers to the actual generated artifacts.
+These checks are intentionally redundant with the deterministic transition
+model in \Cref{sec:transition}. The model explains the expected transition;
+ledger enforcement decides whether a claim spend is admissible; external
+evidence, where used, should bind the accepted transition to the same scope,
+value equation, and output descriptors.
 
-\section{Implementation Evidence for the Claim-Materialisation Profile}
+\section{Acceptance Argument for the Claim-Materialisation Profile}
+\label{sec:acceptance}
 
 \begin{lemma}[Scope and supersession]
+\label{lem:scope-supersession}
 For the claim-materialisation profile, a settlement transaction cannot validly
 mix evidence across domains, networks, Heads, factories, or settlement epochs,
 and cannot settle a state number less than or equal to the datum-bound latest
@@ -812,25 +1022,27 @@ state number.
 \end{lemma}
 
 \begin{proof}
-The claim datum and redeemer carry the same settlement scope, and the validator
-checks equality of the scope fields. The next state number is required to be
-strictly greater than the datum's latest-state number, while the current and
-next commitments are recomputed from canonical fields.
+The claim state and transition witness carry the same settlement scope, and
+ledger enforcement checks equality of the scope fields. The next state number
+is required to be strictly greater than the datum's latest-state number, while
+the current and next commitments are recomputed from canonical fields.
 \end{proof}
 
 \begin{lemma}[Conservation and bounded continuation]
+\label{lem:conservation-continuation}
 Every accepted claim-materialisation transition conserves the claim input value
 exactly across selected outputs and, if present, the unique continuation claim.
 \end{lemma}
 
 \begin{proof}
-The validator compares the input claim value with the sum of selected settlement
-outputs plus continuation value. The equality is over lovelace and native
-assets. Admission checks bound the number of selected outputs, proof size,
-execution units, and min-ADA floor.
+Ledger enforcement compares the input claim value with the sum of selected
+settlement outputs plus continuation value. The equality is over lovelace and
+native assets. Admission checks bound the number of selected outputs, proof
+size, execution units, and min-ADA floor.
 \end{proof}
 
 \begin{lemma}[Receipt frontier]
+\label{lem:receipt-frontier}
 An accepted transition cannot materialise the same canonical right prefix
 twice.
 \end{lemma}
@@ -844,6 +1056,7 @@ check.
 \end{proof}
 
 \begin{lemma}[Reduced-signature non-interference]
+\label{lem:noninterference}
 In reduced-signature mode, an accepted transition can affect only rights whose
 owners are represented by the authorised signer subset.
 \end{lemma}
@@ -856,13 +1069,31 @@ right is changed, the witness no longer matches the datum-bound
 non-interference root.
 \end{proof}
 
-\begin{theorem}[Checked claim-materialisation theorem]
-For any implementation-accepted claim settlement, if the Hydra/Cardano devnet
-evidence, local files, profile matrix, and theorem gate all pass, then the
-settlement:
+\begin{lemma}[No-stranding]
+\label{lem:no-stranding}
+For every accepted claim-materialisation transition, unresolved value is either
+paid to selected settlement outputs, preserved in exactly one same-scope
+continuation claim, or absent because final settlement has reached zero
+unresolved value.
+\end{lemma}
+
+\begin{proof}
+\Cref{lem:conservation-continuation} gives exact value conservation and requires
+the continuing value to equal the input claim value minus selected outputs.
+\Cref{sec:continuation} requires exactly one continuation when unresolved value
+remains and no continuation when it does not. Scope preservation and monotone
+frontier advancement prevent the remaining value from being represented under a
+different claim identity or a regressed batch boundary.
+\end{proof}
+
+\begin{theorem}[Claim-materialisation safety theorem]
+\label{thm:claim-materialisation-safety}
+For any accepted claim-materialisation settlement, if the ledger validates the
+claim spend and the supplied evidence satisfies the transition obligations
+below, then the settlement:
 \begin{enumerate}[leftmargin=1.2cm]
-\item spends the script-controlled claim UTxO through the compiled claim
-validator with matching inline datum, redeemer, and artifacts;
+\item spends the script-controlled claim UTxO under the claim admissibility
+rule;
 \item binds latest-state evidence to one domain, network id, Head id, factory
 id, and claim epoch;
 \item strictly supersedes the previous latest-state number;
@@ -872,104 +1103,171 @@ id, and claim epoch;
 continuation state;
 \item emits deterministic release receipts and advances the settled-right
 frontier;
+\item leaves no unresolved value stranded outside selected outputs or a
+same-scope continuation;
 \item respects committed output-count, proof-size, execution-unit, and min-ADA
 bounds;
 \item binds proof availability before materialisation;
-\item accepts only hash-matching local ledger, transaction, artifact,
-script-cost, and Hydra lifecycle evidence; and
+\item accepts only evidence that is bound to the same scope, value equation,
+transition, and selected outputs; and
 \item reaches profile acceptance only when no unresolved claim value remains.
 \end{enumerate}
 \end{theorem}
 
-The theorem should be read as an implementation-backed instantiation of the
-lemmas above, not as a free-standing proof of the whole protocol design. It is
-encoded in the repository's security-theorem verifier as named obligations. The
-verifier fails unless each obligation is covered by the deterministic model,
-validator source keywords, strict real devnet checks, local file-hash
-verification, profile-matrix evidence, and negative tests.
+The theorem should be read as a conditional acceptance theorem for the
+claim-materialisation profile, not as a free-standing proof of the whole Lerna
+design. It is intentionally narrow: the claim holds only where the host ledger
+validates the spend, \Cref{asm:proof-availability,asm:liveness} hold, and the
+materialised batch remains within the committed budget of
+\Cref{asm:bounded-materialisation}.
 
 \begin{longtable}{L{0.38\linewidth}L{0.52\linewidth}}
+\caption{Acceptance obligations for \Cref{thm:claim-materialisation-safety}.}
+\\
 \toprule
-\textbf{Obligation id} & \textbf{Meaning}\\
+\textbf{Obligation} & \textbf{Meaning}\\
 \midrule
 \endhead
-\texttt{claim-utxo-ledger-enforcement} & Claim spend uses the compiled validator and matching artifacts\\
-\texttt{latest-state-supersession} & Same-scope settlement strictly advances state number\\
-\texttt{state-commitment-integrity} & Commitments are recomputable from canonical fields\\
-\texttt{exact-authorisation} & Full or reduced signer evidence matches the datum policy\\
-\texttt{non-interference-frame} & Reduced settlement affects only signed owners\\
-\texttt{asset-conservation} & Lovelace and native assets are exactly conserved\\
-\texttt{release-receipt-nullifier} & Materialised rights cannot be claimed twice\\
-\texttt{multi-batch-progress} & Partial batches advance a canonical frontier\\
-\texttt{materialisation-admission} & Output count, proof size, costs, and min-ADA are bounded\\
-\texttt{proof-availability} & Witness availability is bound before materialisation\\
-\texttt{ledger-evidence-authenticity} & Local files and ledger observations hash-match the report\\
-\texttt{finality-of-accepted-report} & Final acceptance leaves no unresolved claim value\\
+Ledger enforcement & Claim spend follows the admissibility rule for the active claim state\\
+Latest-state supersession & Same-scope settlement strictly advances state number\\
+State-commitment integrity & Commitments are recomputable from canonical fields\\
+Exact authorisation & Full or reduced signer evidence matches the datum policy\\
+Non-interference frame & Reduced settlement affects only signed owners\\
+Asset conservation & Lovelace and native assets are exactly conserved\\
+Receipt nullification & Materialised rights cannot be claimed twice\\
+Multi-batch progress & Partial batches advance a canonical frontier\\
+No-stranding & Remaining value is either paid, preserved in one continuation, or absent\\
+Admission bounds & Output count, proof size, costs, and min-ADA are bounded\\
+Proof availability & Witness availability is bound before materialisation\\
+Evidence binding & Ledger observations and transition witnesses bind to the same scope\\
+Final acceptance & Final settlement leaves no unresolved claim value\\
 \bottomrule
 \end{longtable}
 
 \section{Evidence and Evaluation}
+\label{sec:evidence}
 
-The implementation repository contains deterministic evidence, real
-Hydra/Cardano devnet evidence, and a profile matrix for the
-claim-materialisation profile. The intended implementation acceptance path uses
-four commands:
-
-\begin{lstlisting}[language=bash]
-npm test
-npm run verify:security-theorem
-npm run check:devnet
-npm run check:profiles
-\end{lstlisting}
-
-\noindent
-The file-hash part of this evidence is deliberately strict and therefore
-path-sensitive. A fresh checkout should regenerate or path-normalise local
-Hydra/Cardano artifact references before treating the theorem gate as
-reproduced. A historical JSON report is evidence of the recorded run; a clean
-local theorem pass is evidence that the recorded artifacts still bind to the
-current checkout.
-
-\texttt{npm test} runs the Node test suite, including negative tests for stale
-state numbers, signer mismatches, conservation failures, receipt mismatches,
-output descriptor mutations, and local evidence mismatches.
-\texttt{npm run verify:security-theorem} checks the obligation coverage.
-\texttt{npm run check:devnet} probes the toolchain, builds the Aiken blueprint,
-runs deterministic claim evidence, runs the real Hydra/Cardano devnet flow when
-available, refreshes deterministic evidence with the real Head scope, verifies
-the real evidence, and asserts acceptance. \texttt{npm run check:profiles}
-requires the reduced-signature, native-asset, and multi-batch profiles to pass
-real devnet verification.
+The thesis treats instantiation evidence as corroboration, not as the paper's
+central claim. The useful evidence question is whether the protocol obligations
+in \Cref{sec:acceptance} can be exercised in a concrete ledger
+environment while preserving the same abstract boundaries: scope binding, state
+supersession, conservation, authorisation, receipt progress, continuation
+discipline, and bounded materialisation.
 
 \begin{center}
-\begin{tabular}{llll}
+\begin{tabular}{L{0.28\linewidth}L{0.58\linewidth}}
 \toprule
-\textbf{Profile} & \textbf{Authorisation} & \textbf{Native assets} & \textbf{Batching}\\
+\textbf{Evidence class} & \textbf{Role in the thesis}\\
 \midrule
-reduced-signature & reduced non-interference & none & final settlement\\
-native-asset & reduced non-interference & exact conservation & final settlement\\
-multi-batch & reduced non-interference & none & two batches\\
+Transition examples & Show that final settlement, reduced-signature settlement,
+native-asset conservation, and partial continuation are all covered by the same
+state relation.\\
+Negative cases & Exercise stale state, signer mismatch, over-release, receipt
+mutation, output-descriptor mutation, and frontier regression.\\
+Ledger experiments & Demonstrate that the claim-materialisation profile can be
+executed against a concrete Cardano/Hydra-style ledger setting.\\
+Independent review & Checks whether the stated assumptions, related-work
+comparisons, theorem boundary, and review matrix in
+\Cref{sec:related-work,app:review-matrix} are narrow enough for academic use.\\
 \bottomrule
 \end{tabular}
 \end{center}
 
-As of the committed profile-matrix evidence generated on 6 June 2026, all three
-profiles report
-\texttt{passFailStatus = passed}, \texttt{realDevnetPassFailStatus = passed},
-and no unresolved claim value after settlement.
+The paper deliberately avoids pinning its main claim to one instantiation. Such
+details are useful for local reproduction, but they are not the thesis. The
+thesis is the settlement discipline: compact rights are acceptable only when the
+protocol can deterministically materialise them within the stated assumptions.
 
-\section{Limitations}
+\subsection{Evaluation Targets}
+\label{sec:evaluation-targets}
 
-The unified profile framing removes roadmap language; it does not remove the
-safety boundary. Lerna remains bounded in the following ways.
+The generic evaluation agenda follows the protocol obligations rather than any
+particular instantiation. Each target asks whether a candidate instantiation preserves
+the abstract property stated in \Cref{thm:claim-materialisation-safety}.
+
+\begin{table}[t]
+\centering
+\caption{Evaluation targets for Lerna instantiations.}
+\label{tab:evaluation-targets}
+\begin{tabular}{L{0.24\linewidth}L{0.34\linewidth}L{0.30\linewidth}}
+\toprule
+\textbf{Target} & \textbf{Question} & \textbf{Expected evidence}\\
+\midrule
+State-machine coverage & Are all states in \Cref{tab:state-machine} reachable
+only through admissible transitions? & Positive and negative traces for compact,
+claim-open, partial, final, and rejected states.\\
+Conservation & Is \(\Value(C)\) exactly conserved across selected outputs and
+continuation? & Lovelace and native-asset cases, including attempted
+over-release and asset substitution.\\
+Non-interference & Can reduced signer sets affect only signed owners? & Touched
+right proofs plus rejection of unsigned-owner outputs.\\
+Receipt frontier & Can a settled right prefix be materialised twice? & Receipt
+root and frontier progression with replay/reordering rejection.\\
+No-stranding & Can unresolved value disappear without either payout or a
+same-scope continuation? & Partial batches, final batches, and rejected
+continuation mutations.\\
+Admission bounds & Are output count, proof size, execution cost, and min-ADA
+limits respected? & Boundary cases around each committed limit.\\
+Assumption audit & Are proof availability and liveness supplied outside the
+protocol where required? & Deployment documentation for storage, watcher
+responsibility, and deadlines.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Related Work and Positioning}
+\label{sec:related-work}
+
+\Cref{sec:layering} positioned Lerna in the stack. This section states the
+comparative claim more directly: Lerna is not a replacement for any of the
+neighbouring protocols; it is an inner rights-materialisation discipline that
+becomes relevant when those protocols carry compact state.
+
+\begin{table}[t]
+\centering
+\caption{Positioning of Lerna against neighbouring work.}
+\label{tab:related-positioning}
+\begin{tabular}{L{0.21\linewidth}L{0.31\linewidth}L{0.36\linewidth}}
+\toprule
+\textbf{Work} & \textbf{Primary object} & \textbf{Lerna boundary}\\
+\midrule
+Hydra Head~\cite{hydra-paper,hydra-docs} & Off-chain Head ledger with close,
+contest, and fanout. & Lerna stays below the Head lifecycle and defines how
+compact rights inside the Head become ordinary ledger claims.\\
+Interhead~\cite{interhead} & Virtual Head movement across physical Heads. &
+Lerna does not transport Heads; it materialises rights inside a Head or virtual
+Head context.\\
+Hydrozoa~\cite{hydrozoa-spec} & Cooperative and fallback regimes with
+deterministic outer rollout. & Lerna borrows the no-stranding and deterministic
+ordering discipline for inner factory rights, not the full ledger architecture.\\
+eltoo, factories, Perun~\cite{eltoo,factories,perun} & Newer-state replacement,
+shared funding, and adjudication of state-channel evidence. & Lerna adapts the
+latest-state and factory-locality intuition to Cardano/Hydra eUTxO settlement
+without importing another dispute game.\\
+Cardano eUTxO~\cite{cardano-eutxo} & Ledger substrate with explicit outputs,
+scripts, native assets, and transaction budgets. & Lerna is formulated as a
+settlement discipline over that substrate: exact value conservation, explicit
+claims, and bounded materialisation.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\Cref{tab:related-positioning} also constrains the novelty claim. Lerna's
+contribution is not another Head protocol, virtual-Head transport protocol, or
+general state-channel framework. Its contribution is the rule that compact
+factory rights must be repayable by deterministic materialisation before outer
+settlement machinery is asked to preserve custody.
+
+\section{Limitations and Open Questions}
+\label{sec:limitations}
+
+The unified profile framing removes status language; it does not
+remove the safety boundary. Lerna remains bounded in the following ways.
 
 \begin{enumerate}[leftmargin=1.2cm]
-\item The claim-materialisation implementation is local devnet evidence, not a
-mainnet deployment.
+\item Instantiation evidence is corroborative; it is not a deployment claim.
 \item The theorem assumes Cardano ledger validation and Hydra lifecycle
-observations behave as recorded.
-\item Historical evidence reports are not a substitute for fresh local
-acceptance when artifact paths or git metadata differ from the current checkout.
+observations behave according to their stated rules.
 \item The Head-local profile is safe only under the authorised
 checkpoint/materialisation assumption stated above. If that assumption is too
 strong, the application must use claim-materialisation rather than compact
@@ -984,47 +1282,105 @@ logic, and cross-Head settlement composition are outside the accepted
 claim-materialisation profile.
 \end{enumerate}
 
+\subsection{Open Questions}
+\label{sec:open-questions}
+
+\begin{description}[leftmargin=3.4cm,style=nextline]
+\item[Head-local formalisation.]
+Can the Head-local profile be given a transition relation and liveness theorem
+with the same precision as the claim-materialisation profile?
+
+\item[Proof availability.]
+Which storage and retrieval mechanism should make proof bodies available before
+materialisation deadlines, and how should non-availability be surfaced to
+watchers?
+
+\item[Capacity envelopes.]
+What are the practical output-count, proof-size, execution-cost, and min-ADA
+envelopes for representative factory sizes on the intended host ledger?
+
+\item[Application semantics.]
+Which application-level rights can safely be represented by the factory-local
+non-interference frame without adding an application-specific proof system?
+
+\item[Cross-Head composition.]
+When an Interhead or Hydrozoa-style host changes the outer settlement context,
+what extra binding is needed so Lerna's inner receipts and frontiers remain
+unambiguous?
+\end{description}
+
 \section{Conclusion}
+\label{sec:conclusion}
 
-Lerna's position is precise when it is described through settlement profiles.
-Interhead virtualises Heads across Heads; Lerna virtualises rights and channels
-inside a Head or virtual Head. Hydrozoa shows why execution and custody should
-be separated and why rollout must be deterministic; Lerna applies that ethic to
-the inner materialisation of compact factory rights. Hydra Head supplies the
-close/contest/fanout substrate and the practical constraints that make
-compactness valuable; Lerna repays compactness through deterministic
-materialisation, release receipts, non-interference checks, and exact value
-conservation.
+Lerna's position is precise when it is described through the safety envelopes in
+\Cref{sec:profile-boundary}. Interhead virtualises Heads across Heads; Lerna
+virtualises rights and channels inside a Head or virtual Head. Hydrozoa shows
+why execution and custody should be separated and why rollout must be
+deterministic; Lerna applies that ethic to the inner materialisation of compact
+factory rights. Hydra Head supplies the close/contest/fanout substrate and the
+practical constraints that make compactness valuable; Lerna repays compactness
+through deterministic materialisation, release receipts, non-interference
+checks, and exact value conservation.
 
-The claim-materialisation implementation is therefore evidence for one strong
-settlement profile, not the whole identity of the protocol. The Head-local
-factory profile remains useful when its liveness assumption is acceptable. The
-claim-materialisation profile is appropriate when that assumption is too strong
-and explicit ledger settlement is required. The remaining work is to keep
-tightening the theorem boundary: expand independent review of the Aiken
-validator, reproduce devnet evidence on fresh infrastructure, measure mainnet
-era limits, and state every deployment assumption at the same precision as the
-code checks it.
+Claim-materialisation is therefore one strong settlement profile, not the whole
+identity of the protocol. The Head-local factory profile remains useful when its
+liveness assumption is acceptable. The claim-materialisation profile is
+appropriate when that assumption is too strong and explicit ledger settlement is
+required. In both profiles, the academic claim is the same: compactness is safe
+only when enforceable state, deterministic payout order, balance preservation,
+and no-stranding are made explicit. The remaining work follows directly from
+\Cref{sec:limitations,sec:open-questions}: formalise the Head-local transition
+relation, make proof availability operational rather than merely committed,
+measure real ledger limits, and state every deployment assumption at the same
+precision as the protocol checks it.
 
 \appendix
-\section{Reproducibility Checklist}
+\section{Protocol Review Matrix}
+\label{app:review-matrix}
 
-\begin{enumerate}[leftmargin=1.2cm]
-\item Check the implementation commit: \texttt{66ff116}.
-\item Confirm the paper is using the intended settlement profile:
-Head-local factory or claim-materialisation.
-\item Regenerate or path-normalise local Hydra/Cardano evidence artifacts for
-the current checkout.
-\item Treat historical JSON reports as run records; trust the current checkout
-only after the local gates pass.
-\item Run \texttt{npm test}.
-\item Run \texttt{npm run verify:security-theorem}.
-\item Run \texttt{npm run check:devnet}.
-\item Run \texttt{npm run check:profiles}.
-\item Inspect \texttt{evidence/profile-matrix/profile-matrix.json}.
-\item Inspect \texttt{docs/LERNA\_SECURITY\_THEOREM.md} and confirm every
-obligation id appears in the theorem gate.
-\end{enumerate}
+This appendix turns the thesis boundary into a construction-review target.
+Every row should be readable against \Cref{sec:system,sec:state,sec:transition}
+and should have both a positive case and a rejection case in any concrete
+instantiation.
+
+\begin{longtable}{L{0.08\linewidth}L{0.24\linewidth}L{0.28\linewidth}L{0.29\linewidth}}
+\caption{Protocol review matrix for Lerna.}
+\\
+\toprule
+\textbf{ID} & \textbf{Invariant} & \textbf{Positive case} & \textbf{Rejection case}\\
+\midrule
+\endhead
+S1 & Settlement scope is unique & Domain, network, Head, factory, and epoch all
+match \Cref{def:scope} & Transition replays evidence across any scope field\\
+S2 & Latest state strictly supersedes & Same-scope state number advances under
+\Cref{lem:scope-supersession} & Same-number or lower-number transition is
+accepted\\
+A1 & Authorisation matches policy & Full or reduced signer evidence matches the
+claim policy in \Cref{sec:authorisation} & Extra, missing, or unauthorised signer
+changes settlement authority\\
+N1 & Reduced settlement is non-interfering & Touched rights belong to signed
+owners and the untouched frame remains committed & Unsigned owner output or
+untouched right changes during partial settlement\\
+V1 & Value is conserved exactly & Selected outputs plus continuation equal the
+claim value over lovelace and native assets & Over-release, under-release, or
+asset-type substitution is accepted\\
+R1 & Receipts prevent double materialisation & Receipt root and frontier advance
+for every materialised right & A previously settled right prefix is materialised
+again\\
+C1 & Continuation is unique and bounded & A partial batch creates one continuing
+claim with advanced frontier and preserved scope & Multiple continuations, wrong
+scope, or unbounded unresolved value is accepted\\
+B1 & Admission bounds are respected & Output count, proof size, execution cost,
+and min-ADA fit the committed budget & Oversized proof, excessive outputs, or
+below-floor output is accepted\\
+P1 & Proof availability is explicit & Proof witness commitment names material
+available to the verifier before settlement & Settlement relies on unavailable
+proof bodies without an assumption or fallback\\
+L1 & Liveness assumptions are visible & Watcher/operator deadlines are stated
+where the protocol cannot force action & The paper implies offline actors can be
+made to submit evidence\\
+\bottomrule
+\end{longtable}
 
 \begin{thebibliography}{99}
 \raggedright
@@ -1078,12 +1434,6 @@ C. Burchert, C. Decker, and R. Wattenhofer.
 S. Dziembowski, S. Faust, and K. Hostakova.
 \newblock General State Channel Networks.
 \newblock ACM CCS 2018.
-
-\bibitem{lerna-impl}
-a19q3.
-\newblock Lerna claim-UTxO implementation repository.
-\newblock Commit \texttt{66ff116}, consulted 8 June 2026.
-\newblock \url{https://github.com/a19q3/Lerna}.
 
 \end{thebibliography}
 
