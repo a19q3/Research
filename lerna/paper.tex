@@ -65,6 +65,15 @@
   lernaGreenBox/.style={lernaBox, fill=LernaMint, draw=LernaGreen!75!black},
   lernaAmberBox/.style={lernaBox, fill=LernaGold, draw=LernaAmber!80!black},
   lernaRedBox/.style={lernaBox, fill=LernaRed!8, draw=LernaRed!75!black},
+  lernaArrow/.style={
+    -{Latex[length=2.8mm,width=1.8mm]},
+    line width=0.85pt,
+    draw=LernaInk!70,
+    shorten <=3pt,
+    shorten >=3pt,
+    line cap=round
+  },
+  lernaRejectArrow/.style={lernaArrow, dashed, draw=LernaRed!70!black},
   lernaTitle/.style={font=\sffamily\bfseries\small, text=LernaInk},
   lernaTiny/.style={font=\sffamily\scriptsize, align=center}
 }
@@ -393,17 +402,22 @@ this placement.
 \centering
 \resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[font=\sffamily\small]
-  \node[lernaAmberBox, minimum width=5.4cm, minimum height=1.25cm]
+  \node[lernaAmberBox, minimum width=5.4cm, minimum height=1.25cm] (inner)
     at (-3.25,3.2) {\textbf{Lerna inner rule}\\ compact rights become\\ materialised claims};
 
-  \node[lernaSoft, minimum width=5.4cm, minimum height=1.25cm]
+  \node[lernaSoft, minimum width=5.4cm, minimum height=1.25cm] (outer)
     at (3.25,3.2) {\textbf{Outer settlement}\\ Hydra fanout or\\ Hydrozoa-style rollout};
 
-  \node[lernaGreenBox, minimum width=12.0cm, minimum height=1.25cm]
-    at (0,1.35) {\textbf{Hydra / Interhead Head context}\\ physical or virtual Head, signed snapshots, close, contest, fanout};
+  \node[lernaGreenBox, minimum width=12.0cm, minimum height=1.25cm] (head)
+    at (0,1.45) {\textbf{Hydra / Interhead Head context}\\ physical or virtual Head, signed snapshots, close, contest, fanout};
 
-  \node[lernaBox, fill=gray!8, minimum width=12.8cm, minimum height=1.0cm]
-    at (0,0) {\textbf{Cardano L1}\\ eUTxO ledger, scripts, native assets, min-ADA, transaction budgets};
+  \node[lernaBox, fill=gray!8, minimum width=12.8cm, minimum height=1.0cm] (l1)
+    at (0,-0.15) {\textbf{Cardano L1}\\ eUTxO ledger, scripts, native assets, min-ADA, transaction budgets};
+
+  \draw[lernaArrow] (inner.east) -- (outer.west);
+  \draw[lernaArrow] (inner.south) -- ([xshift=-2.4cm]head.north);
+  \draw[lernaArrow] (outer.south) -- ([xshift=2.4cm]head.north);
+  \draw[lernaArrow] (head.south) -- (l1.north);
 \end{tikzpicture}}
 \caption{Lerna's location in the stack. Hydra and Interhead provide Head
 contexts and the outer settlement lifecycle; Hydrozoa motivates deterministic
@@ -691,22 +705,29 @@ scope while relying on different enforcement envelopes.
 \centering
 \resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[font=\sffamily\small, node distance=1.0cm]
-  \node[lernaAmberBox, minimum width=5.2cm, minimum height=1.05cm]
+  \node[lernaAmberBox, minimum width=5.2cm, minimum height=1.05cm] (factory)
     at (0,4.1) {\textbf{Lerna FactoryState \(F\)}\\ rights commitment, unresolved value, frontier};
 
-  \node[lernaGreenBox, minimum width=5.5cm, minimum height=1.05cm]
+  \node[lernaGreenBox, minimum width=5.5cm, minimum height=1.05cm] (headlocal)
     at (-4.1,2.35) {\textbf{Head-local factory profile}\\ compact state remains in Head UTxOs};
-  \node[lernaSoft, minimum width=5.5cm, minimum height=1.05cm]
+  \node[lernaSoft, minimum width=5.5cm, minimum height=1.05cm] (claim)
     at (4.1,2.35) {\textbf{Claim-materialisation profile}\\ compact state becomes a claim UTxO};
 
-  \node[lernaGreenBox, minimum width=5.5cm, minimum height=1.35cm]
+  \node[lernaGreenBox, minimum width=5.5cm, minimum height=1.35cm] (snapshot)
     at (-4.1,0.55) {\textbf{Safety evidence}\\ signed snapshot embeds \(F\)\\ stale close uses newer snapshot};
 
-  \node[lernaSoft, minimum width=5.5cm, minimum height=1.35cm]
+  \node[lernaSoft, minimum width=5.5cm, minimum height=1.35cm] (evidence)
     at (4.1,0.55) {\textbf{Safety evidence}\\ ledger rule checks transition\\ evidence binding is explicit};
 
-  \node[lernaAmberBox, minimum width=7.2cm, minimum height=1.0cm]
+  \node[lernaAmberBox, minimum width=7.2cm, minimum height=1.0cm] (result)
     at (0,-1.45) {\textbf{Shared acceptance result}\\ ordinary outputs + release receipts + optional continuation};
+
+  \draw[lernaArrow] (factory.south west) -- (headlocal.north east);
+  \draw[lernaArrow] (factory.south east) -- (claim.north west);
+  \draw[lernaArrow] (headlocal.south) -- (snapshot.north);
+  \draw[lernaArrow] (claim.south) -- (evidence.north);
+  \draw[lernaArrow] (snapshot.south) -- ([xshift=-2.0cm]result.north);
+  \draw[lernaArrow] (evidence.south) -- ([xshift=2.0cm]result.north);
 
 \end{tikzpicture}}
 \caption{The two settlement profiles are safety envelopes for the same compact
@@ -882,20 +903,24 @@ claim-materialisation view of the same transition.
 \centering
 \resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[font=\sffamily\small]
-  \node[lernaSoft, minimum width=3.8cm, minimum height=1.25cm]
+  \node[lernaSoft, minimum width=3.8cm, minimum height=1.25cm] (claim)
     at (-4.8,1.1) {\textbf{Input}\\ Claim UTxO \(C\)\\ unresolved value, frontier \(f\)};
 
-  \node[lernaAmberBox, minimum width=4.5cm, minimum height=1.25cm]
+  \node[lernaAmberBox, minimum width=4.5cm, minimum height=1.25cm] (decision)
     at (0,1.1) {\textbf{Decision}\\ batch \(R=(r_1,\ldots,r_k)\)\\ signer set \(S\)};
 
-  \node[lernaGreenBox, minimum width=4.7cm, minimum height=1.55cm]
-    at (5.0,1.1) {\textbf{Accepted products}\\ selected outputs\\ release receipts\\ optional continuation \(C'\)};
+  \node[lernaGreenBox, minimum width=4.7cm, minimum height=1.55cm] (accepted)
+    at (5.25,1.1) {\textbf{Accepted products}\\ selected outputs\\ release receipts\\ optional continuation \(C'\)};
 
   \node[lernaTiny, text=LernaInk, align=center] at (0,2.85)
     {\(\Value(C)=\sum O+\Value(C')\)\\ \(f' > f\), scope unchanged};
 
-  \node[lernaRedBox, minimum width=7.0cm, minimum height=0.9cm]
+  \node[lernaRedBox, minimum width=7.0cm, minimum height=0.9cm] (reject)
     at (0,-0.9) {\textbf{Rejected if}\\ stale state, wrong scope, over-release, bad frame};
+
+  \draw[lernaArrow] (claim.east) -- (decision.west);
+  \draw[lernaArrow] (decision.east) -- (accepted.west);
+  \draw[lernaRejectArrow] (decision.south) -- (reject.north);
 \end{tikzpicture}}
 \caption{Claim-materialisation as a value-preserving transition. The compact
 claim is spent once; selected rights become ordinary outputs, released rights
