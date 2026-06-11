@@ -89,15 +89,15 @@
 
 \begin{abstract}
 \noindent
-CKB's Cell model lets a channel separate the object that holds value from the object that carries dispute evidence. Morph Channel uses that separation to keep the funding identity stable while unilateral disputes move a State Cell containing signed state evidence. Publication transactions are paid from sponsor-owned Cells, so channel reserve, business CKB, and xUDT balances remain outside the fee account.
+CKB's Cell model allows a channel to separate the object that holds value from the object that carries dispute evidence. Morph Channel uses this separation to keep the funding identity stable whilst unilateral disputes advance a State Cell containing signed state evidence. Publication transactions are met from sponsor-owned Cells, so channel reserve, business CKB, and xUDT balances remain outside the fee ledger.
 
 \medskip
 \noindent
-The construction defines a State Header signing domain that binds chain context, channel identity, funding epoch, funding anchor, vault-set commitment, state number, asset registry, settlement descriptor, and challenge policy, while leaving sponsor coin selection unsigned. State Cell, vault-lock, and sponsor-budget validation are specified as script-level predicates. Partition conservation checks occupied capacity, channel reserve, business CKB, and each xUDT type separately, with transaction fees drawn only from the sponsor partition.
+The construction defines a State Header signing domain that binds chain context, channel identity, funding epoch, funding anchor, vault-set commitment, state number, asset registry, settlement descriptor, and challenge policy, whilst leaving sponsor coin selection unsigned. State Cell, vault-lock, and sponsor-budget validation are specified as script-level predicates. Partition conservation checks occupied capacity, channel reserve, business CKB, and each xUDT type separately, with transaction fees charged only to the sponsor partition.
 
 \medskip
 \noindent
-For bilateral channels, Morph begins with plaintext witnesses so force-close transactions remain auditable. For factories, authority is commitment-based: access manifests, local proofs, touched leaves, and an outer envelope define the admissible transition before proof bytes are interpreted. Under signature unforgeability, hash collision resistance, CKB single-spend enforcement, and a challenge window that covers detection, publication, confirmation, fee bumping, and reorganisation margin, newer valid state evidence supersedes older settling evidence before finalisation. The construction uses only current CKB primitives: Cells, lock scripts, type scripts, witnesses, \texttt{cell\_deps}, and \texttt{since}.
+For bilateral channels, Morph begins with plaintext witnesses so force-close transactions remain auditable. For factories, authority is commitment-based: access manifests, local proofs, touched leaves, and an outer envelope define the admissible transition before proof bytes are interpreted. Under signature unforgeability, hash collision resistance, CKB single-spend enforcement, and a challenge window that covers detection, publication, confirmation, fee bumping, and reorganisation margin, newer valid state evidence supersedes older settling evidence before finalisation. The construction is limited to current CKB primitives: Cells, lock scripts, type scripts, witnesses, \texttt{cell\_deps}, and \texttt{since}.
 \end{abstract}
 
 \vfill
@@ -111,21 +111,21 @@ For bilateral channels, Morph begins with plaintext witnesses so force-close tra
 
 \section{Introduction and Motivation}
 
-Payment channels and state channels keep frequent updates off-chain while preserving unilateral settlement on-chain when cooperation fails. The Lightning Network~\cite{lightning} gives the canonical payment-channel construction, while eltoo~\cite{eltoo} isolates a replacement-based rule: during a dispute, newer mutually signed state should defeat stale evidence. Channel factories~\cite{factories} extend this idea to shared funding structures that support many off-chain relationships.
+Payment channels and state channels keep frequent updates off-chain whilst preserving unilateral settlement on-chain when cooperation fails. The Lightning Network~\cite{lightning} is the canonical payment-channel construction, whilst eltoo~\cite{eltoo} isolates a replacement-based rule: during a dispute, newer mutually signed state should defeat stale evidence. Channel factories~\cite{factories} extend this idea to shared funding structures that support many off-chain relationships.
 
-CKB exposes a different design point. A Cell has data, a lock script, an optional type script, capacity, and a stable outpoint~\cite{ckb-cell,ckb-tx}. A CKB channel can therefore ask scripts to recognise two different objects: a stable value anchor and a moving state-evidence Cell. This suggests the design question:
+CKB exposes a different design point. A Cell has data, a lock script, an optional type script, capacity, and a stable outpoint~\cite{ckb-cell,ckb-tx}. A CKB channel can therefore make scripts recognise two different objects: a stable value anchor and a moving state-evidence Cell. This gives the design question:
 
 \begin{quote}
 What protocol structure is required so that CKB can express a channel whose funding object remains stable, while disputes move only signed state evidence?
 \end{quote}
 
-Morph Channel keeps channel value anchored in stable Cells, moves a distinct State Cell during disputes, and pays publication fees from sponsor-owned funds rather than channel-owned value. It uses the newer-state-wins intuition, but implements it through CKB scripts, State Cells, relative \texttt{since}, and explicit value partitioning rather than Bitcoin-style output reshaping.
+Morph Channel keeps channel value anchored in stable Cells, advances a distinct State Cell during disputes, and meets publication fees from sponsor-owned funds rather than channel-owned value. It uses the newer-state-wins principle, but implements it through CKB scripts, State Cells, relative \texttt{since}, and explicit value partitioning rather than Bitcoin-style output reshaping.
 
 \subsection{Scope}
 
 The paper focuses on script-level channel and factory architecture. It does not attempt to solve routing, liquidity discovery, gossip, privacy networks, watchtower markets, or factory governance. It also avoids any assumption of sub-second finality, DAG ordering, native channel transaction classes, or CKB node modification. All claims are bounded by existing CKB primitives.
 
-The scope is the construction itself: threat model, object authority, transaction invariants, deployability, and benchmark obligations. The paper does not claim production readiness.
+The scope is the construction itself: threat model, object authority, transaction invariants, deployability, and benchmark obligations. The paper does not claim readiness for production deployment.
 
 \subsection{Design Thesis}
 
@@ -134,7 +134,7 @@ The central thesis is:
 \emph{A CKB channel becomes simpler when funding identity, state authority, and publication fee responsibility are separate protocol objects.}
 \end{quote}
 
-Morph treats the funding object, the signed state, and the fee-paying transaction inputs as separate authorities. The funding object identifies channel-owned value. The State Cell and participant signatures decide how that value may settle. Sponsor inputs pay for publication without changing channel balances. This separation keeps unilateral exit independent of wallet coin selection and makes multi-asset conservation auditable.
+Morph treats the funding object, the signed state, and the fee-paying transaction inputs as separate authorities. The funding object identifies channel-owned value. The State Cell and participant signatures determine how that value may settle. Sponsor inputs fund publication without changing channel balances. This separation keeps unilateral exit independent of wallet coin selection and makes multi-asset conservation auditable.
 
 \begin{figure}[htbp]
 \centering
@@ -154,7 +154,7 @@ Morph treats the funding object, the signed state, and the fee-paying transactio
 \draw[arrow] (sponsor.north) -- (state.south);
 \draw[arrow, dashed] (watch.west) -- (sponsor.east);
 \node[align=center, font=\scriptsize, text width=8.5cm] at (3.8,-2.0)
-  {Funding value stays anchored; state evidence moves during disputes; sponsor funds pay publication.};
+  {Funding value stays anchored; state evidence moves during disputes; sponsor funds meet publication costs.};
 \end{tikzpicture}
 \caption{High-level decomposition. The channel value object, the moving dispute evidence, and the fee-paying sponsor funds are separate protocol objects.}
 \label{fig:decomposition}
@@ -166,7 +166,7 @@ Morph treats the funding object, the signed state, and the fee-paying transactio
 
 In many UTXO-oriented channel designs, settlement value and channel state are operationally coupled: a state update is represented by a new arrangement of future spend paths over the funding output. This coupling is natural in Bitcoin-like systems, but it is not inevitable on CKB. Since Cells can carry explicit typed state, a channel may maintain a stable funding anchor and move a separate state object.
 
-If the value-holding object is also the state-update object, a force-close template can mix settlement authorisation, fee selection, and asset accounting in one place. Morph separates those checks: the vault protects channel value, the State Cell carries dispute evidence, and sponsor inputs pay for the carrier transaction.
+If the value-holding object is also the state-update object, a force-close template can mix settlement authorisation, fee selection, and asset accounting in one place. Morph separates those checks: the vault protects channel value, the State Cell carries dispute evidence, and sponsor inputs fund the carrier transaction.
 
 \subsection{The Fee-Boundary Problem}
 
@@ -199,7 +199,7 @@ This paper makes nine contributions.
   \item \textbf{Splice-aware funding identity.} It distinguishes stable logical channel identity from the current funding epoch, funding anchor, and vault set, so resizing a channel does not make stale evidence reusable.
   \item \textbf{Bilateral/factory witness separation.} It argues that bilateral channels should begin with plaintext witnesses, while factories require commitment-authoritative local proofs.
   \item \textbf{Envelope-first factory authorisation.} It separates admission of a factory transition from interpretation of its proof body: a bounded outer claim names the transition family and commits to one evidence body.
-  \item \textbf{Challenge-window budgeting.} It derives the relative-\texttt{since} delay as a deployment parameter covering detection, polling, propagation, confirmation, fee volatility, and reorg margin.
+  \item \textbf{Challenge-window budgeting.} It derives the relative-\texttt{since} delay as a deployment parameter covering detection, polling, propagation, confirmation, fee volatility, and reorganisation margin.
   \item \textbf{Factory non-interference.} It identifies non-interference as the condition required before a factory action can safely reduce its signing set below all participants.
 \end{enumerate}
 
@@ -239,7 +239,7 @@ The signature scheme is existentially unforgeable under chosen-message attacks, 
 
 \subsection{Actors}
 
-The protocol includes channel participants, optional watchtowers, ordinary wallets providing sponsor funds, and CKB miners/validators. A watchtower may observe chain events and publish newer state evidence, but it should not hold custody over channel-owned value.
+The protocol includes channel participants, optional watchtowers, standard wallets providing sponsor funds, and CKB miners/validators. A watchtower may observe chain events and publish newer state evidence, but it should not hold custody over channel-owned value.
 
 \subsection{Adversarial Goals}
 
@@ -338,7 +338,7 @@ The version fields, funding epoch, funding anchor, and vault-set commitment are 
 
 \subsection{Sponsor Partition}
 
-Sponsor funds are not part of the channel-owned value partition. They are ordinary wallet Cells, watchtower-owned Cells, or pre-authorised fee budgets. The script-enforced budget boundary should include channel identity, state-number range, maximum fee, expected state type, and clean change destination. Expiry windows, allowed sponsor sources, publishing cadence, and webhook policy may also be enforced by an operator or watchtower layer. If a deployment lacks script-verifiable evidence for such a field, the field must not be silently treated as a script-enforced safety condition.
+Sponsor funds are not part of the channel-owned value partition. They are standard wallet Cells, watchtower-owned Cells, or pre-authorised fee budgets. The script-enforced budget boundary should include channel identity, state-number range, maximum fee, expected state type, and uncontaminated change destination. Expiry windows, allowed sponsor sources, publishing cadence, and webhook policy may also be enforced by an operator or watchtower layer. If a deployment lacks script-verifiable evidence for such a field, the field must not be silently treated as a script-enforced safety condition.
 
 \begin{figure}[htbp]
 \centering
@@ -363,9 +363,9 @@ Sponsor funds are not part of the channel-owned value partition. They are ordina
 \draw[arrow] (fundgroup.east) -- (stategroup.west);
 \draw[arrow] (stategroup.east) -- (sponsorgroup.west);
 \node[align=center, font=\scriptsize, text width=8.7cm] at (3.75,-2.25)
-  {The state track binds the funding identity; the publication layer pays carrier transactions. Vault value is not used for fees.};
+  {The state track binds the funding identity; the publication layer meets carrier-transaction costs. Vault value is not used for fees.};
 \end{tikzpicture}
-\caption{Protocol object map. The funding bundle holds channel identity and value; the state track carries authority; the publication layer pays the transaction fee.}
+\caption{Protocol object map. The funding bundle holds channel identity and value; the state track carries authority; the publication layer meets the transaction fee.}
 \label{fig:object-map}
 \end{figure}
 
@@ -486,7 +486,7 @@ This lock is the point at which ``current valid state'' becomes economically mea
 
 \subsection{Bounded Sponsor Budget Semantics}
 
-A sponsor budget may be implemented as a normal wallet signature, a watchtower-owned Cell, or a bounded policy Cell. The bounded policy form is the most delicate because it authorises another actor to spend capacity for publication.
+A sponsor budget may be implemented as a standard wallet signature, a watchtower-owned Cell, or a bounded policy Cell. The bounded policy form is the most delicate because it authorises another actor to spend capacity for publication.
 
 \begin{lstlisting}
 verify_sponsor_budget_spend(tx):
@@ -504,7 +504,7 @@ verify_sponsor_budget_spend(tx):
 \end{lstlisting}
 
 Expiry windows, allowed sponsor sources, scan cadence, and webhook policy remain
-operator or watchtower policy unless the deployment gives the script verifiable
+operator or watchtower policy unless the deployment provides the script with verifiable
 evidence for those fields. A bounded sponsor script rejects, or otherwise makes
 inadmissible, a finite script-level deadline for which it cannot verify the
 relevant chain evidence.
@@ -556,7 +556,7 @@ The lifecycle contains six operations:
 
 \subsection{FUND}
 
-\textsf{FUND} creates the stable funding bundle and the initial State Cell. The funding transaction may be paid by ordinary wallet inputs. After funding, channel-owned value enters the channel partition and should not be used for publication fees.
+\textsf{FUND} creates the stable funding bundle and the initial State Cell. The funding transaction may be funded by standard wallet inputs. After funding, channel-owned value enters the channel partition and should not be used for publication fees.
 
 The initial State Cell is the only on-chain active pointer created by the channel. Its type arguments or equivalent identity mechanism must bind the same funding-anchor identity used by the Fund Cell and vault locks. A transaction that attempts to create two initial State Cells for the same channel genesis identity is invalid under the funding script profile.
 
@@ -587,7 +587,7 @@ PUBLISH_STATE:
     channel partition is conserved
 \end{lstlisting}
 
-Participant signatures authorise the state header. The transaction body chooses live inputs, sponsor inputs, and fee rate, so a challenger may rebuild it against the currently live State Cell under competing tx-pool spends.
+Participant signatures authorise the state header. The transaction body selects live inputs, sponsor inputs, and fee rate, so a challenger may rebuild it against the currently live State Cell under competing tx-pool spends.
 
 \begin{figure}[htbp]
 \centering
@@ -622,7 +622,7 @@ Participant signatures authorise the state header. The transaction body chooses 
 
 A splice-in increases the channel-controlled asset set by admitting external value. A splice-out releases value while preserving enough post-splice vault value to satisfy the latest signed settlement descriptor. In both cases, the signed transition must bind the old funding anchor, the new funding anchor, the old vault-set commitment, the new vault-set commitment, and the per-asset deltas. CKB and xUDT lanes are checked by asset identity and amount, not by informal wallet labels.
 
-The freshness consequence is important for recovery. A watchtower package saved before a splice is not automatically valid after the splice, even if it has a higher state number than some local record, because its signed funding epoch and vault-set commitment refer to a different enforceable value object.
+The freshness consequence is material for recovery. A watchtower package saved before a splice is not automatically valid after the splice, even if it has a higher state number than some local record, because its signed funding epoch and vault-set commitment refer to a different enforceable value object.
 
 \subsection{FINALIZE}
 
@@ -734,7 +734,7 @@ partition_conservation(tx, asset_registry):
           unless explicitly classified by the descriptor
 \end{lstlisting}
 
-The algorithm separates four questions that are otherwise easy to confuse: whether a Cell can exist, whether channel reserve is conserved or refunded, whether CKB business value is conserved, and whether each xUDT type is conserved under its own type script. Unrelated Cells may appear only when they are irrelevant to channel script reads and irrelevant to conservation. They must not be used as hidden witnesses for channel authority.
+The algorithm separates four questions that are otherwise readily conflated: whether a Cell can exist, whether channel reserve is conserved or refunded, whether CKB business value is conserved, and whether each xUDT type is conserved under its own type script. Unrelated Cells may appear only when they are irrelevant to channel script reads and irrelevant to conservation. They must not be used as hidden witnesses for channel authority.
 
 \begin{table}[t]
 \centering
@@ -744,7 +744,7 @@ The algorithm separates four questions that are otherwise easy to confuse: wheth
 \toprule
 Partition & Source & Role & Fee payer \\
 \midrule
-Sponsor capacity & ordinary wallet or budget Cells & transaction fees and change & yes \\
+Sponsor capacity & standard wallet or budget Cells & transaction fees and change & yes \\
 Channel reserve & channel-owned CKB capacity & Cell occupancy and reserve refund & no \\
 Business assets & CKB or xUDT balances & participant settlement value & no \\
 \bottomrule
@@ -784,13 +784,13 @@ A signed descriptor or vault delta is not only an accounting statement. For ever
 
 \section{Bilateral Witness Mode}
 
-For a two-party channel, the first witness format should remain plaintext. Bilateral state is typically small: balances, conditional payments, timeout information, and shutdown policies. Plaintext witnesses keep force-close transactions auditable and make early prototypes easier to test. Privacy can later be improved by replacing the payload with committed state material once size and CKB-VM costs are measured.
+For a two-party channel, the first witness format should remain plaintext. Bilateral state is typically small: balances, conditional payments, timeout information, and shutdown policies. Plaintext witnesses keep force-close transactions auditable and make early prototypes simpler to test. Privacy may later be improved by replacing the payload with committed state material once size and CKB-VM costs are measured.
 
 Plaintext is not authority by itself. The authoritative object remains the signed state header and its payload commitment. A validator checks that the plaintext payload deterministically induces the committed payload hash and satisfies the descriptor and conservation rules.
 
 \section{Factory Proof Mode}
 
-Factories require a different authority model. A factory may contain many participants, balances, subchannels, reserves, and local exit paths. Full plaintext disclosure on every local exit exposes unrelated participant data and can make witness size and verification cost grow with factory size. Factory authority should therefore be commitment-first.
+Factories require a different authority model. A factory may contain many participants, balances, subchannels, reserves, and local exit paths. Full plaintext disclosure on every local exit exposes unrelated participant data and may cause witness size and verification cost to grow with factory size. Factory authority should therefore be commitment-first.
 
 \begin{definition}[Factory State]
 A factory state is a state header plus a set of roots:
@@ -816,7 +816,7 @@ FactoryEnvelope {
 \end{lstlisting}
 \end{definition}
 
-The envelope is not the local proof. It is the admission-control object that says which proof grammar is being invoked and which evidence body is committed. A body that merely parses as some factory payload is not authority unless the outer claim admits that transition family and binds that body.
+The envelope is not the local proof. It is the admission-control object that specifies which proof grammar is being invoked and which evidence body is committed. A body that merely parses as some factory payload is not authority unless the outer claim admits that transition family and binds that body.
 
 \begin{definition}[Factory Witness]
 A factory witness contains an outer transition envelope, an access manifest, a proof bundle, touched leaf payloads, and the required signatures:
@@ -901,7 +901,7 @@ Different factory paths authorise different effects: a conservative update, a lo
 
 A deployment is not accepted merely because one representative factory path
 succeeds. A candidate deployment must pass an end-to-end devnet acceptance
-matrix in which every value-bearing factory business flow is exercised as a
+matrix in which every value-bearing factory flow is exercised as a
 committed transition, and every attack-shaped factory rejection is checked
 against its intended error class. The matrix is stated at protocol level
 without prescribing a transaction builder, storage format, or proof encoding.
@@ -1056,13 +1056,13 @@ Any change to the protocol version, signature scheme, chain, channel, funding ep
 
 \section{Watchtower and Recovery Objects}
 
-A watchtower stores the latest state package and publishes newer evidence when stale evidence appears on-chain; it never receives authority over channel-owned value. A state package is richer than a bare root but leaner than a permanent plaintext dump:
+A watchtower stores the latest state package and publishes newer evidence when stale evidence appears on-chain; it never receives authority over channel-owned value. A state package contains more operational material than a bare root, but less disclosure than a permanent plaintext dump:
 \[
 \mathsf{StatePackage} =
 (\Header,\Payload\ \mathrm{or}\ \mathrm{roots},\Pi,\Sigma,\mathsf{sponsor\_policy}).
 \]
 
-The script-enforced sponsor boundary must be bounded by channel identity, state-number range, maximum fee, expected State Type, and change destination. Expiry windows, allowed sponsor sources, and publishing cadence are operator/watchtower policy in the conservative profile unless a deployment provides script-verifiable evidence for those fields; finite script-level deadlines without such evidence should be rejected rather than treated as consensus-enforced policy. The watchtower should not be able to redirect channel-owned value or drain arbitrary wallet funds.
+The script-enforced sponsor boundary must be bounded by channel identity, state-number range, maximum fee, expected State Type, and change destination. Expiry windows, allowed sponsor sources, and publishing cadence are operator or watchtower policy in the conservative profile unless a deployment provides script-verifiable evidence for those fields; finite script-level deadlines without such evidence should be rejected rather than treated as consensus-enforced policy. The watchtower must not be able to redirect channel-owned value or drain arbitrary wallet funds.
 
 After a splice, watchtower recovery must be funding-context aware. A stored package is publishable only if its signed funding epoch, funding anchor, and vault-set commitment match the currently live state track. Otherwise it is merely historical evidence for an older funding context.
 
@@ -1085,7 +1085,7 @@ The earlier package signs a different funding epoch, funding anchor, or vault-se
 \end{proof}
 
 \begin{proposition}[Vault Spend Safety]
-If each vault lock accepts only settlement or materialisation transactions authorised by an authentic current State Cell and descriptor-admissible outputs, then channel-owned value cannot be spent through ordinary wallet paths or fake state-header bytes.
+If each vault lock accepts only settlement or materialisation transactions authorised by an authentic current State Cell and descriptor-admissible outputs, then channel-owned value cannot be spent through standard wallet paths or fake state-header bytes.
 \end{proposition}
 
 \begin{proof}
@@ -1163,18 +1163,18 @@ The construction remains incomplete in several respects:
 
 \section{Conclusion}
 
-Morph Channel shows how to separate funding identity, state evidence, sponsor
+Morph Channel sets out how to separate funding identity, state evidence, sponsor
 fee responsibility, and factory-local proof admission using current CKB script
 objects. The construction keeps channel value in vault Cells, moves dispute
 authority through a State Cell, checks channel and sponsor value in separate
 partitions, and requires factory-local proofs to be admitted by a bounded
 transition envelope.
 
-The remaining burden is empirical and operational. A deployable protocol needs
+The remaining burden is empirical and operational. A deployable protocol requires
 benchmark evidence for witness size, CKB-VM cycles, challenge-window
 parameters, fee-budget policy, splice recovery, and factory proof costs. Until
-those measurements exist, Morph is best read as a script-level construction for
-CKB channels rather than as a production channel network.
+those measurements exist, Morph remains a script-level construction for CKB
+channels rather than a production channel network.
 
 \appendix
 
